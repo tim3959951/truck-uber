@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+deploy/
+*.zip
+._*

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>大車叫車 · 管理後台</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  body{font-family:system-ui,"PingFang TC","Microsoft JhengHei",sans-serif;margin:0;background:#f4f4f4;color:#111}
+  header{background:#000;color:#fff;padding:12px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  header b{font-size:16px}
+  nav button{background:#222;color:#fff;border:0;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:700}
+  nav button.on{background:#fff;color:#000}
+  main{padding:16px 20px;max-width:1300px}
+  table{border-collapse:collapse;width:100%;background:#fff;font-size:13px}
+  th,td{border-bottom:1px solid #e5e5e5;padding:8px 10px;text-align:left;vertical-align:top;white-space:nowrap}
+  th{background:#fafafa;position:sticky;top:0}
+  .wrap{overflow:auto;max-height:75vh;border:1px solid #e5e5e5}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700;background:#eee}
+  .pill.verified,.pill.completed,.pill.paid,.pill.available{background:#dff7ea;color:#0a7a44}
+  .pill.pending,.pill.searching,.pill.offered{background:#fff1d6;color:#7a4b00}
+  .pill.rejected,.pill.cancelled,.pill.failed,.pill.refunded{background:#fde7e3;color:#b3160a}
+  .pill.accepted,.pill.arrived,.pill.in_transit,.pill.delivered{background:#e3ecff;color:#1e4fb8}
+  button.sm{font-size:12px;padding:4px 8px;border:1px solid #bbb;background:#fff;border-radius:4px;cursor:pointer;margin-right:4px}
+  button.sm.danger{border-color:#e11900;color:#e11900}
+  form.login{max-width:380px;margin:60px auto;background:#fff;padding:24px;border-radius:12px;display:flex;flex-direction:column;gap:10px}
+  input,select{padding:10px;border:1px solid #ccc;border-radius:6px;font:inherit}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .muted{color:#666;font-size:12px}
+  .cfg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;background:#fff;padding:16px;border:1px solid #e5e5e5}
+  .cfg label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700}
+  #msg{position:fixed;bottom:16px;right:16px;background:#000;color:#fff;padding:10px 14px;border-radius:8px;display:none}
+</style>
+</head>
+<body>
+<header>
+  <b>大車叫車 · 管理後台</b>
+  <nav id="nav" style="display:none">
+    <button data-tab="orders" class="on">訂單</button>
+    <button data-tab="drivers">司機</button>
+    <button data-tab="vehicles">車輛</button>
+    <button data-tab="operators">車行</button>
+    <button data-tab="profiles">使用者</button>
+    <button data-tab="payments">付款</button>
+    <button data-tab="earnings">司機收入</button>
+    <button data-tab="config">計價設定</button>
+  </nav>
+  <span style="flex:1"></span>
+  <span id="who" class="muted"></span>
+  <button id="logout" class="sm" style="display:none">登出</button>
+</header>
+<main id="main"></main>
+<div id="msg"></div>
+
+<script>
+/* ---------- config (URL + anon key remembered in this browser) ---------- */
+const DEFAULTS = { url: 'https://iyjodzxjodygjpkvlvwt.supabase.co', key: 'sb_publishable_oJV1lC6n8f7KfJ8sopjIoA__P_ina3K' }; // Tim's project (anon key is public)
+const cfg = { url: localStorage.getItem('sb_url') || DEFAULTS.url, key: localStorage.getItem('sb_key') || DEFAULTS.key };
+let sb = null, me = null, tab = 'orders';
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pill = (v) => `<span class="pill ${esc(v)}">${esc(v)}</span>`;
+const ts = (v) => (v ? new Date(v).toLocaleString('zh-TW', { hour12: false }) : '');
+const ntd = (n) => 'NT$ ' + Number(n || 0).toLocaleString();
+function msg(t) { const m = $('#msg'); m.textContent = t; m.style.display = 'block'; setTimeout(() => (m.style.display = 'none'), 2500); }
+
+async function boot() {
+  if (!cfg.url || !cfg.key) return renderSetup();
+  sb = supabase.createClient(cfg.url, cfg.key);
+  const { data } = await sb.auth.getSession();
+  if (!data.session) return renderLogin();
+  await afterLogin(data.session);
+}
+
+function renderSetup() {
+  $('#main').innerHTML = `<form class="login" id="setup">
+    <b>連線設定</b><span class="muted">來自 Supabase → Project Settings → API</span>
+    <input id="u" placeholder="https://xxxx.supabase.co" value="${esc(cfg.url)}">
+    <input id="k" placeholder="anon public key" value="${esc(cfg.key)}">
+    <button>儲存</button></form>`;
+  $('#setup').onsubmit = (e) => { e.preventDefault(); localStorage.setItem('sb_url', $('#u').value.trim()); localStorage.setItem('sb_key', $('#k').value.trim()); location.reload(); };
+}
+function renderLogin(err) {
+  $('#main').innerHTML = `<form class="login" id="login">
+    <b>管理員登入</b><span class="muted">帳號的 profiles.role 必須是 admin（在 SQL editor 設定）</span>
+    <input id="e" type="email" placeholder="admin@company.tw" autocomplete="username">
+    <input id="p" type="password" placeholder="密碼" autocomplete="current-password">
+    ${err ? `<span style="color:#e11900">${esc(err)}</span>` : ''}
+    <button>登入</button>
+    <button type="button" class="sm" id="reset">更改連線設定</button></form>`;
+  $('#reset').onclick = () => { localStorage.removeItem('sb_url'); localStorage.removeItem('sb_key'); location.reload(); };
+  $('#login').onsubmit = async (e) => {
+    e.preventDefault();
+    const { data, error } = await sb.auth.signInWithPassword({ email: $('#e').value, password: $('#p').value });
+    if (error) return renderLogin(error.message);
+    await afterLogin(data.session);
+  };
+}
+async function afterLogin(session) {
+  const { data: p } = await sb.from('profiles').select('role,name').eq('id', session.user.id).single();
+  if (!p || p.role !== 'admin') { await sb.auth.signOut(); return renderLogin('此帳號不是 admin'); }
+  me = session.user;
+  $('#who').textContent = `${p.name || session.user.email} (admin)`;
+  $('#nav').style.display = ''; $('#logout').style.display = '';
+  $('#logout').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  document.querySelectorAll('#nav button').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; document.querySelectorAll('#nav button').forEach((x) => x.classList.toggle('on', x === b)); render(); }));
+  render();
+}
+
+/* ---------- tables ---------- */
+const table = (cols, rows, rowHtml) => `<div class="wrap"><table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rows.map(rowHtml).join('') || `<tr><td colspan="${cols.length}" class="muted">（沒有資料）</td></tr>`}</tbody></table></div>`;
+const VERIFY = (t, id, cur) => ['pending', 'verified', 'rejected'].filter((v) => v !== cur).map((v) => `<button class="sm ${v === 'rejected' ? 'danger' : ''}" onclick="setVerify('${t}','${id}','${v}')">${v}</button>`).join('');
+
+async function render() {
+  $('#main').innerHTML = '<span class="muted">載入中…</span>';
+  try {
+    if (tab === 'orders') {
+      const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+      if (error) throw error;
+      $('#main').innerHTML = `<div class="row"><b>訂單</b><span class="muted">${data.length} 筆（最新 200）</span><button class="sm" onclick="render()">重新整理</button></div>` +
+        table(['單號', '狀態', '建立', '客戶', '司機 / 車牌', '起點 → 終點', '托 · 貨物', '車種', 'km', '運費', '抽成', '司機', '評分', '操作'], data, (o) => `<tr>
+          <td><b>${esc(o.order_no)}</b><br><span class="muted">${esc(o.id.slice(0, 8))}</span></td><td>${pill(o.status)}</td><td>${ts(o.created_at)}</td>
+          <td>${esc(o.customer_company || o.customer_name)}<br><span class="muted">${esc(o.customer_phone)}</span></td>
+          <td>${esc(o.driver_name || '—')}<br><span class="muted">${esc(o.vehicle_plate || '')}</span></td>
+          <td>${esc(o.pickup_name)} → ${esc(o.dest_name)}</td><td>${o.pallets} 托 · ${esc(o.cargo_type)}${o.need_tail_lift ? '<br><span class="pill warn">需尾門</span>' : ''}${o.helpers ? `<br><span class="pill warn">搬工×${o.helpers}</span>` : ''}</td><td>${esc(o.truck_tier)}</td>
+          <td>${o.estimated_km} <span class="muted">${esc(o.distance_source)}</span></td><td>${ntd(o.quoted_price)}</td><td>${ntd(o.platform_fee)}</td><td>${ntd(o.driver_amount)}</td><td>${o.rating ? '★' + o.rating : ''}</td>
+          <td><button class="sm" onclick="events('${o.id}')">事件</button>${['completed', 'cancelled'].includes(o.status) ? '' : `<button class="sm danger" onclick="cancelOrder('${o.id}')">取消</button>`}</td></tr>`) +
+        `<div id="events"></div>`;
+    } else if (tab === 'drivers') {
+      const { data: ds, error } = await sb.from('drivers').select('*, profiles(name,phone,created_at), driver_locations(lat,lng,updated_at), operators(company_name)').order('created_at', { ascending: false });
+      if (error) throw error;
+      $('#main').innerHTML = `<div class="row"><b>司機</b><button class="sm" onclick="render()">重新整理</button></div>` +
+        table(['姓名', '電話', '上線', '審核', '評分', '趟數', '車行', '最後位置', '操作'], ds, (d) => `<tr>
+          <td>${esc(d.profiles?.name)}</td><td>${esc(d.profiles?.phone)}</td><td>${d.online ? '● 上線' : '○ 離線'}</td><td>${pill(d.verification_status)}</td>
+          <td>${d.rating} (${d.rating_count})</td><td>${d.trips_count}</td><td>${esc(d.operators?.company_name || '—')}</td>
+          <td>${d.driver_locations ? `${d.driver_locations.lat.toFixed(4)}, ${d.driver_locations.lng.toFixed(4)}<br><span class="muted">${ts(d.driver_locations.updated_at)}</span>` : '—'}</td>
+          <td>${VERIFY('drivers', d.id, d.verification_status)}</td></tr>`);
+    } else if (tab === 'vehicles') {
+      const { data, error } = await sb.from('vehicles').select('*, drivers(profiles(name))').order('created_at', { ascending: false });
+      if (error) throw error;
+      $('#main').innerHTML = `<div class="row"><b>車輛</b><button class="sm" onclick="render()">重新整理</button></div>` +
+        table(['車牌', '車型', '噸數', '可載托數', '升降尾門', '司機', '啟用', '審核', '操作'], data, (v) => `<tr>
+          <td><b>${esc(v.plate)}</b></td><td>${esc(v.make_model || v.truck_type)}</td><td>${v.capacity_tons}</td><td>${v.capacity_pallets}</td>
+          <td>${v.has_tail_lift ? '有' : '無'} <button class="sm" onclick="setTailLift('${v.id}',${!v.has_tail_lift})">${v.has_tail_lift ? '改為無' : '改為有'}</button></td>
+          <td>${esc(v.drivers?.profiles?.name)}</td>
+          <td>${v.active ? '是' : '否'}</td><td>${pill(v.verification_status)}</td><td>${VERIFY('vehicles', v.id, v.verification_status)}</td></tr>`);
+    } else if (tab === 'operators') {
+      const { data, error } = await sb.from('operators').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      $('#main').innerHTML = `<div class="row"><b>車行</b><input id="opname" placeholder="新增車行名稱"><button class="sm" onclick="addOperator()">新增</button></div>` +
+        table(['名稱', '統編', '電話', '審核', '操作'], data, (o) => `<tr><td>${esc(o.company_name)}</td><td>${esc(o.tax_id)}</td><td>${esc(o.phone)}</td><td>${pill(o.verification_status)}</td><td>${VERIFY('operators', o.id, o.verification_status)}</td></tr>`);
+    } else if (tab === 'profiles') {
+      const { data, error } = await sb.from('profiles').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      $('#main').innerHTML = `<div class="row"><b>使用者</b><span class="muted">${data.length} 位</span></div>` +
+        table(['姓名', '角色', '電話', '公司', '建立', 'id'], data, (p) => `<tr><td>${esc(p.name)}</td><td>${pill(p.role)}</td><td>${esc(p.phone)}</td><td>${esc(p.company)}</td><td>${ts(p.created_at)}</td><td class="muted">${esc(p.id)}</td></tr>`);
+    } else if (tab === 'payments') {
+      const { data, error } = await sb.from('payments').select('*, orders(order_no)').order('created_at', { ascending: false }).limit(200);
+      if (error) throw error;
+      $('#main').innerHTML = `<div class="row"><b>付款</b></div>` +
+        table(['單號', '狀態', '金額', '平台費', '司機', '提供者', '交易 id', '建立', '付款', '退款'], data, (p) => `<tr><td>${esc(p.orders?.order_no)}</td><td>${pill(p.status)}</td><td>${ntd(p.amount)}</td><td>${ntd(p.platform_fee)}</td><td>${ntd(p.driver_amount)}</td><td>${esc(p.provider)}</td><td class="muted">${esc(p.provider_transaction_id || '')}</td><td>${ts(p.created_at)}</td><td>${ts(p.paid_at)}</td><td>${ts(p.refunded_at)}</td></tr>`);
+    } else if (tab === 'earnings') {
+      const { data, error } = await sb.from('driver_earnings').select('*, orders(order_no), drivers(profiles(name))').order('created_at', { ascending: false }).limit(200);
+      if (error) throw error;
+      const sum = (st) => data.filter((e) => e.status === st).reduce((a, e) => a + e.driver_amount, 0);
+      $('#main').innerHTML = `<div class="row"><b>司機收入帳本</b><span class="muted">pending ${ntd(sum('pending'))} · available ${ntd(sum('available'))} · paid ${ntd(sum('paid'))}</span></div>` +
+        table(['司機', '單號', '運費', '平台費', '司機實收', '狀態', '建立', '可撥款日', '已撥款', '操作'], data, (e) => `<tr><td>${esc(e.drivers?.profiles?.name)}</td><td>${esc(e.orders?.order_no)}</td><td>${ntd(e.gross_amount)}</td><td>${ntd(e.platform_fee)}</td><td><b>${ntd(e.driver_amount)}</b></td><td>${pill(e.status)}</td><td>${ts(e.created_at)}</td><td>${ts(e.available_at)}</td><td>${ts(e.paid_at)}</td>
+          <td>${e.status === 'pending' ? `<button class="sm" onclick="setEarning('${e.id}','available')">標記可撥款</button>` : ''}${e.status === 'available' ? `<button class="sm" onclick="setEarning('${e.id}','paid')">標記已撥款</button>` : ''}</td></tr>`);
+    } else if (tab === 'config') {
+      const { data: c, error } = await sb.from('pricing_config').select('*').eq('id', 1).single();
+      if (error) throw error;
+      const f = (k, label, step = 1) => `<label>${label}<input name="${k}" type="number" step="${step}" value="${c[k]}"></label>`;
+      $('#main').innerHTML = `<div class="row"><b>計價與派單設定</b><span class="muted">更新於 ${ts(c.updated_at)}</span></div>
+        <form id="cfg" class="cfg">
+          ${f('base_fare', '起步價 NT$')}${f('per_km', '每公里 NT$')}${f('per_pallet', '每托 NT$')}
+          ${f('dedicated_multiplier', '專車係數', 0.01)}${f('backhaul_multiplier', '回頭車係數', 0.01)}${f('platform_fee_rate', '平台抽成 (0–1)', 0.001)}
+          ${f('tail_lift_fee', '升降尾門費 NT$/趟')}${f('helper_fee', '搬運工費 NT$/人/趟')}
+          ${f('service_radius_km', '派單半徑 km')}${f('offer_timeout_seconds', '派單回應秒數')}${f('earnings_hold_days', '收入保留天數')}
+          <label>只派給已驗證司機/車輛<select name="require_verification"><option value="false" ${!c.require_verification ? 'selected' : ''}>否（測試期）</option><option value="true" ${c.require_verification ? 'selected' : ''}>是</option></select></label>
+          <div style="grid-column:1/-1"><button class="sm">儲存</button></div>
+        </form>`;
+      $('#cfg').onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target); const patch = { updated_at: new Date().toISOString() };
+        for (const [k, v] of fd.entries()) patch[k] = k === 'require_verification' ? v === 'true' : Number(v);
+        const { error } = await sb.from('pricing_config').update(patch).eq('id', 1);
+        msg(error ? error.message : '已儲存'); render();
+      };
+    }
+  } catch (e) { $('#main').innerHTML = `<span style="color:#e11900">${esc(e.message || e)}</span>`; }
+}
+
+/* ---------- actions ---------- */
+async function setVerify(t, id, v) {
+  const { error } = await sb.from(t).update({ verification_status: v }).eq('id', id);
+  msg(error ? error.message : `已更新為 ${v}`); render();
+}
+async function setTailLift(id, v) {
+  const { error } = await sb.from('vehicles').update({ has_tail_lift: v }).eq('id', id);
+  msg(error ? error.message : '已更新'); render();
+}
+async function setEarning(id, status) {
+  const patch = { status }; if (status === 'paid') patch.paid_at = new Date().toISOString();
+  const { error } = await sb.from('driver_earnings').update(patch).eq('id', id);
+  msg(error ? error.message : '已更新'); render();
+}
+async function addOperator() {
+  const name = $('#opname').value.trim(); if (!name) return;
+  const { error } = await sb.from('operators').insert({ company_name: name });
+  msg(error ? error.message : '已新增'); render();
+}
+async function cancelOrder(id) {
+  const reason = prompt('取消原因（會寫入事件紀錄）', '管理員取消'); if (reason === null) return;
+  const { error } = await sb.rpc('cancel_order', { p_order: id, p_reason: reason });
+  msg(error ? error.message : '已取消（付款已標記退款）'); render();
+}
+async function events(id) {
+  const { data, error } = await sb.from('order_events').select('*').eq('order_id', id).order('id');
+  if (error) return msg(error.message);
+  $('#events').innerHTML = `<h3>事件紀錄 <span class="muted">${esc(id)}</span></h3>` + table(['#', '事件', '時間', '操作者', '位置', 'metadata'], data, (e) => `<tr><td>${e.id}</td><td>${pill(e.event_type)}</td><td>${ts(e.created_at)}</td><td class="muted">${esc(e.actor_id || 'system')}</td><td>${e.lat ? `${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}` : ''}</td><td class="muted">${esc(JSON.stringify(e.metadata))}</td></tr>`);
+  $('#events').scrollIntoView({ behavior: 'smooth' });
+}
+boot();
+</script>
+</body>
+</html>

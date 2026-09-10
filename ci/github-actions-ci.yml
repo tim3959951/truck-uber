@@ -1,0 +1,29 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - name: database state-machine tests
+        env: { PGHOST: localhost, PGPORT: '5432', PGUSER: postgres, PGPASSWORD: postgres }
+        run: ./supabase/tests/run_local.sh
+      - name: web bundles build
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder_key_000000
+          EXPO_PUBLIC_BACKEND: supabase
+        run: |
+          npm run build:web --workspace=apps/customer
+          npm run build:web --workspace=apps/driver

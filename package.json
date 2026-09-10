@@ -1,0 +1,16 @@
+{
+  "name": "truck-uber",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "customer": "npm run start --workspace=apps/customer",
+    "driver": "npm run start --workspace=apps/driver",
+    "typecheck": "tsc -p apps/customer --noEmit && tsc -p apps/driver --noEmit",
+    "db:test": "./supabase/tests/run_local.sh",
+    "customer:tunnel": "npm run start --workspace=apps/customer -- --tunnel",
+    "driver:tunnel": "npm run start --workspace=apps/driver -- --tunnel"
+  }
+}

@@ -1,0 +1,10 @@
+# Shared settings for both Netlify sites (customer + driver). Each site sets its
+# own "Build command" and "Publish directory" in the Netlify UI:
+#   customer:  npm run build:web --workspace=apps/customer   →  apps/customer/dist
+#   driver:    npm run build:web --workspace=apps/driver     →  apps/driver/dist
+# and the environment variables EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY / EXPO_PUBLIC_BACKEND=supabase.
+[build]
+  base = ""
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--no-audit --no-fund"

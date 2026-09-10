@@ -1,0 +1,393 @@
+/**
+ * Real backend: Supabase Auth + Postgres RPCs (see supabase/migrations) + Realtime.
+ * All state transitions happen in SQL functions; this file only maps rows ⇄ app models.
+ */
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
+import type { Backend, Unsubscribe } from './backend';
+import { CARGO_TYPES, TIERS } from './data';
+import { routePath } from './pricing';
+import { getSupabase } from './supabaseClient';
+import type {
+  DriverLocation,
+  EarningsSummary,
+  HistoryItem,
+  Order,
+  OrderInput,
+  OrderStatus,
+  PricingConfig,
+  Session,
+  SignUpInput,
+} from './types';
+
+/* ---------- row types (subset of public.orders) ---------- */
+type OrderRow = {
+  id: string;
+  order_no: string;
+  customer_id: string;
+  driver_id: string | null;
+  offered_driver_id: string | null;
+  offer_expires_at: string | null;
+  pickup_name: string;
+  pickup_addr: string;
+  pickup_lat: number;
+  pickup_lng: number;
+  dest_name: string;
+  dest_addr: string;
+  dest_lat: number;
+  dest_lng: number;
+  pallets: number;
+  cargo_type: string;
+  note: string;
+  truck_tier: 'dedicated' | 'backhaul';
+  need_tail_lift: boolean;
+  helpers: number;
+  estimated_km: number | string;
+  distance_source: 'osrm' | 'google' | 'estimate';
+  route_polyline: [number, number][] | null;
+  quoted_price: number;
+  quote_breakdown: Record<string, unknown>;
+  platform_fee: number;
+  driver_amount: number;
+  status: OrderStatus;
+  customer_name: string;
+  customer_phone: string;
+  customer_company: string;
+  driver_name: string | null;
+  driver_phone: string | null;
+  driver_rating: number | string | null;
+  vehicle_plate: string | null;
+  vehicle_desc: string | null;
+  rating: number | null;
+  created_at: string;
+  completed_at: string | null;
+};
+
+const num = (v: unknown, d = 0) => (v == null ? d : Number(v));
+const ACTIVE: OrderStatus[] = ['created', 'searching', 'offered', 'accepted', 'arrived', 'in_transit', 'delivered'];
+
+export function mapOrderRow(r: OrderRow): Order {
+  const pickup = { id: 'p', name: r.pickup_name, addr: r.pickup_addr, lat: r.pickup_lat, lng: r.pickup_lng };
+  const drop = { id: 'd', name: r.dest_name, addr: r.dest_addr, lat: r.dest_lat, lng: r.dest_lng };
+  const q = r.quote_breakdown ?? {};
+  return {
+    id: r.id,
+    orderNo: r.order_no,
+    pickup,
+    drop,
+    pallets: r.pallets,
+    cargo: CARGO_TYPES.find((c) => c.name === r.cargo_type) ?? { id: 'other', name: r.cargo_type, hint: '' },
+    note: r.note ?? '',
+    tier: TIERS.find((t) => t.id === r.truck_tier) ?? TIERS[0],
+    needTailLift: !!r.need_tail_lift,
+    helpers: num(r.helpers),
+    km: num(r.estimated_km),
+    distanceSource: r.distance_source,
+    quote: {
+      distanceFee: num(q.distance_fee),
+      palletFee: num(q.pallet_fee),
+      subtotal: num(q.subtotal),
+      baseTotal: num(q.base_total, num(q.subtotal)),
+      tailLiftFee: num(q.tail_lift_fee),
+      helperFee: num(q.helper_fee),
+      total: r.quoted_price,
+      factor: num(q.multiplier, 1),
+      platformFee: r.platform_fee,
+      driverAmount: r.driver_amount,
+    },
+    status: r.status,
+    createdAt: Date.parse(r.created_at),
+    completedAt: r.completed_at ? Date.parse(r.completed_at) : undefined,
+    offerExpiresAt: r.offer_expires_at ? Date.parse(r.offer_expires_at) : undefined,
+    driver: r.driver_id && r.driver_name != null
+      ? {
+          id: r.driver_id,
+          name: r.driver_name,
+          initials: r.driver_name.slice(0, 1),
+          rating: num(r.driver_rating, 5),
+          trips: 0,
+          plate: r.vehicle_plate ?? '',
+          truck: r.vehicle_desc ?? '17噸 大貨車',
+          color: '',
+          phone: r.driver_phone ?? '',
+        }
+      : undefined,
+    customer: { id: r.customer_id, company: r.customer_company, contact: r.customer_name, phone: r.customer_phone },
+    path: r.route_polyline && r.route_polyline.length > 1 ? r.route_polyline : routePath(pickup, drop),
+    progress: 0,
+    rating: r.rating ?? undefined,
+  };
+}
+
+function toHistory(o: Order): HistoryItem {
+  const d = new Date(o.createdAt);
+  return {
+    id: o.id,
+    orderNo: o.orderNo,
+    date: `${d.getMonth() + 1}/${d.getDate()}`,
+    from: o.pickup.name,
+    to: o.drop.name,
+    pallets: o.pallets,
+    cargo: o.cargo.name,
+    total: o.quote.total,
+    driverAmount: o.quote.driverAmount,
+    status: o.status,
+  };
+}
+
+const ORDER_COLS =
+  'id,order_no,customer_id,driver_id,offered_driver_id,offer_expires_at,pickup_name,pickup_addr,pickup_lat,pickup_lng,dest_name,dest_addr,dest_lat,dest_lng,pallets,cargo_type,note,truck_tier,need_tail_lift,helpers,estimated_km,distance_source,route_polyline,quoted_price,quote_breakdown,platform_fee,driver_amount,status,customer_name,customer_phone,customer_company,driver_name,driver_phone,driver_rating,vehicle_plate,vehicle_desc,rating,created_at,completed_at';
+
+export function createSupabaseBackend(): Backend {
+  const sb: SupabaseClient = getSupabase();
+  let cachedSession: Session | null = null;
+  let cachedDriverId: string | undefined;
+
+  async function buildSession(): Promise<Session | null> {
+    const { data } = await sb.auth.getSession();
+    const user = data.session?.user;
+    if (!user) {
+      cachedSession = null;
+      cachedDriverId = undefined;
+      return null;
+    }
+    const { data: p, error } = await sb.from('profiles').select('id,role,name,phone,company').eq('id', user.id).maybeSingle();
+    if (error || !p) {
+      // profile row is created by a DB trigger a moment after sign-up; retry once
+      await new Promise((r) => setTimeout(r, 600));
+      const again = await sb.from('profiles').select('id,role,name,phone,company').eq('id', user.id).maybeSingle();
+      if (!again.data) return null;
+      return finishSession(user.id, user.email ?? '', again.data);
+    }
+    return finishSession(user.id, user.email ?? '', p);
+  }
+
+  async function finishSession(userId: string, email: string, p: { role: Session['role']; name: string; phone: string; company: string }): Promise<Session> {
+    const s: Session = { userId, email, role: p.role, name: p.name, phone: p.phone, company: p.company };
+    if (p.role === 'driver') {
+      const { data: d } = await sb.from('drivers').select('id,online,rating,trips_count,verification_status').eq('profile_id', userId).maybeSingle();
+      if (d) {
+        s.driverId = d.id;
+        s.driverOnline = d.online;
+        s.driverRating = num(d.rating, 5);
+        s.driverTrips = d.trips_count;
+        s.verification = d.verification_status;
+        const { data: v } = await sb.from('vehicles').select('plate,make_model,truck_type,capacity_tons,verification_status,has_tail_lift').eq('driver_id', d.id).eq('active', true).order('created_at').limit(1).maybeSingle();
+        if (v) s.vehicle = { plate: v.plate, desc: `${v.make_model || v.truck_type} · ${num(v.capacity_tons)}噸`, verification: v.verification_status, hasTailLift: !!v.has_tail_lift };
+      }
+    }
+    cachedSession = s;
+    cachedDriverId = s.driverId;
+    return s;
+  }
+
+  async function rpcOrder(fn: string, args: Record<string, unknown>): Promise<Order> {
+    const { data, error } = await sb.rpc(fn, args);
+    if (error) throw new Error(error.message);
+    return mapOrderRow(data as OrderRow);
+  }
+
+  const channels = new Set<RealtimeChannel>();
+  const track = (ch: RealtimeChannel): Unsubscribe => {
+    channels.add(ch);
+    return () => {
+      channels.delete(ch);
+      sb.removeChannel(ch);
+    };
+  };
+
+  return {
+    kind: 'supabase',
+
+    /* ---- auth ---- */
+    getSession: buildSession,
+    onAuthChange(cb) {
+      const { data } = sb.auth.onAuthStateChange((_event, session) => {
+        // never call supabase inside the callback synchronously (docs: deadlock risk)
+        setTimeout(() => {
+          if (!session) {
+            cachedSession = null;
+            cb(null);
+          } else buildSession().then(cb).catch(() => cb(null));
+        }, 0);
+      });
+      return () => data.subscription.unsubscribe();
+    },
+    async signIn(email, password) {
+      const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw new Error(error.message);
+      const s = await buildSession();
+      if (!s) throw new Error('找不到使用者資料');
+      return s;
+    },
+    async signUp(input) {
+      const { data, error } = await sb.auth.signUp({
+        email: input.email.trim(),
+        password: input.password,
+        options: {
+          data: {
+            role: input.role,
+            name: input.name,
+            phone: input.phone,
+            company: input.company ?? '',
+            plate: input.plate ?? '',
+            make_model: input.makeModel ?? '',
+            has_tail_lift: !!input.hasTailLift,
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
+      if (!data.session) return null; // e-mail confirmation required by project settings
+      return buildSession();
+    },
+    async signOut() {
+      channels.forEach((c) => sb.removeChannel(c));
+      channels.clear();
+      await sb.auth.signOut();
+      cachedSession = null;
+      cachedDriverId = undefined;
+    },
+
+    /* ---- config ---- */
+    async getPricingConfig() {
+      const { data, error } = await sb.from('pricing_config').select('*').eq('id', 1).single();
+      if (error || !data) throw new Error(error?.message ?? 'no pricing config');
+      return {
+        baseFare: data.base_fare,
+        perKm: data.per_km,
+        perPallet: data.per_pallet,
+        dedicatedMultiplier: num(data.dedicated_multiplier, 1),
+        backhaulMultiplier: num(data.backhaul_multiplier, 0.75),
+        platformFeeRate: num(data.platform_fee_rate, 0.15),
+        serviceRadiusKm: data.service_radius_km,
+        offerTimeoutSeconds: data.offer_timeout_seconds,
+        maxPallets: 16,
+        tailLiftFee: num(data.tail_lift_fee, 600),
+        helperFee: num(data.helper_fee, 1500),
+      };
+    },
+
+    /* ---- customer ---- */
+    createOrder(input: OrderInput) {
+      return rpcOrder('create_order', {
+        p: {
+          pickup: { name: input.pickup.name, addr: input.pickup.addr, lat: input.pickup.lat, lng: input.pickup.lng },
+          dest: { name: input.drop.name, addr: input.drop.addr, lat: input.drop.lat, lng: input.drop.lng },
+          pallets: input.pallets,
+          cargo_type: input.cargo.name,
+          note: input.note,
+          tier: input.tier.id,
+          need_tail_lift: input.needTailLift,
+          helpers: input.helpers,
+          km: input.km,
+          distance_source: input.distanceSource,
+          route_polyline: input.path,
+        },
+      });
+    },
+    payOrderSandbox: (orderId) => rpcOrder('pay_order_sandbox', { p_order: orderId }),
+    pollOrder: (orderId) => rpcOrder('poll_order', { p_order: orderId }),
+    cancelOrder: (orderId, reason) => rpcOrder('cancel_order', { p_order: orderId, p_reason: reason ?? null }),
+    rateOrder: (orderId, stars, tags) => rpcOrder('rate_order', { p_order: orderId, p_stars: stars, p_tags: tags }),
+
+    /* ---- both ---- */
+    async getOrder(orderId) {
+      const { data } = await sb.from('orders').select(ORDER_COLS).eq('id', orderId).maybeSingle();
+      return data ? mapOrderRow(data as OrderRow) : null;
+    },
+    async getActiveOrder() {
+      const s = cachedSession ?? (await buildSession());
+      if (!s) return null;
+      let q = sb.from('orders').select(ORDER_COLS).in('status', ACTIVE).order('created_at', { ascending: false }).limit(1);
+      q = s.role === 'driver' && s.driverId
+        ? q.or(`driver_id.eq.${s.driverId},offered_driver_id.eq.${s.driverId}`)
+        : q.eq('customer_id', s.userId);
+      const { data } = await q.maybeSingle();
+      return data ? mapOrderRow(data as OrderRow) : null;
+    },
+    async listOrders(limit = 50) {
+      const s = cachedSession ?? (await buildSession());
+      if (!s) return [];
+      let q = sb.from('orders').select(ORDER_COLS).in('status', ['completed', 'cancelled']).order('created_at', { ascending: false }).limit(limit);
+      q = s.role === 'driver' && s.driverId ? q.eq('driver_id', s.driverId) : q.eq('customer_id', s.userId);
+      const { data } = await q;
+      return ((data ?? []) as OrderRow[]).map((r) => toHistory(mapOrderRow(r)));
+    },
+    subscribeOrder(orderId, cb) {
+      const ch = sb
+        .channel(`order:${orderId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, (payload) => {
+          cb(mapOrderRow(payload.new as OrderRow));
+        })
+        .subscribe();
+      return track(ch);
+    },
+    subscribeDriverLocation(driverId, cb) {
+      sb.from('driver_locations').select('lat,lng,heading,speed').eq('driver_id', driverId).maybeSingle().then(({ data }) => {
+        if (data) cb({ lat: data.lat, lng: data.lng, heading: data.heading ?? undefined, speed: data.speed ?? undefined });
+      });
+      const ch = sb
+        .channel(`loc:${driverId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_locations', filter: `driver_id=eq.${driverId}` }, (payload) => {
+          const r = payload.new as { lat: number; lng: number; heading: number | null; speed: number | null };
+          if (r && typeof r.lat === 'number') cb({ lat: r.lat, lng: r.lng, heading: r.heading ?? undefined, speed: r.speed ?? undefined });
+        })
+        .subscribe();
+      return track(ch);
+    },
+
+    /* ---- driver ---- */
+    async setOnline(online, loc) {
+      const { error } = await sb.rpc('driver_set_online', { p_online: online, p_lat: loc?.lat ?? null, p_lng: loc?.lng ?? null });
+      if (error) throw new Error(error.message);
+      if (cachedSession) cachedSession.driverOnline = online;
+    },
+    respondOffer: (orderId, accept) => rpcOrder('respond_offer', { p_order: orderId, p_accept: accept }),
+    advanceOrder: (orderId, next, loc) => rpcOrder('advance_order', { p_order: orderId, p_next: next, p_lat: loc?.lat ?? null, p_lng: loc?.lng ?? null }),
+    async updateLocation(loc) {
+      const { error } = await sb.rpc('update_driver_location', { p_lat: loc.lat, p_lng: loc.lng, p_heading: loc.heading ?? null, p_speed: loc.speed ?? null });
+      if (error) throw new Error(error.message);
+    },
+    subscribeDriverOrders(cb) {
+      const driverId = cachedDriverId;
+      if (!driverId) return () => {};
+      const handler = (payload: { new: unknown }) => cb(mapOrderRow(payload.new as OrderRow));
+      const ch = sb
+        .channel(`driver-orders:${driverId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `offered_driver_id=eq.${driverId}` }, handler)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `driver_id=eq.${driverId}` }, handler)
+        .subscribe();
+      return track(ch);
+    },
+    async getEarnings() {
+      const { data, error } = await sb.rpc('my_earnings');
+      if (error) throw new Error(error.message);
+      const e = data as {
+        today: number; trips_today: number; week: number[]; available: number; pending: number;
+        recent: { order_id: string; order_no: string; from: string; to: string; pallets: number; cargo_type: string; gross: number; driver_amount: number; status: string; created_at: string }[];
+      };
+      return {
+        today: e.today,
+        tripsToday: e.trips_today,
+        week: e.week,
+        available: e.available,
+        pending: e.pending,
+        recent: e.recent.map((r) => {
+          const d = new Date(r.created_at);
+          return { id: r.order_id, orderNo: r.order_no, date: `${d.getMonth() + 1}/${d.getDate()}`, from: r.from, to: r.to, pallets: r.pallets, cargo: r.cargo_type, total: r.gross, driverAmount: r.driver_amount, status: 'completed' as OrderStatus };
+        }),
+      } satisfies EarningsSummary;
+    },
+
+    async setVehicleTailLift(has) {
+      if (!cachedDriverId) throw new Error('not a driver');
+      const { error } = await sb.from('vehicles').update({ has_tail_lift: has }).eq('driver_id', cachedDriverId).eq('active', true);
+      if (error) throw new Error(error.message);
+      if (cachedSession?.vehicle) cachedSession.vehicle.hasTailLift = has;
+    },
+
+    /* ---- push ---- */
+    async registerPushToken(token, platform) {
+      await sb.rpc('register_push_token', { p_token: token, p_platform: platform });
+    },
+  };
+}
