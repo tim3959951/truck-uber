@@ -30,8 +30,8 @@ do $$ declare q jsonb; begin
   assert (q->>'platform_fee')::int = round((q->>'total')::int * 0.15), 'platform fee 15%';
   -- add-ons: flat fees on top of the tiered base
   q := public.quote_price(131, 8, 'backhaul', true, 2);
-  assert (q->>'total')::int = round((1500 + 131*38 + 8*150) * 0.75 / 10) * 10 + 600 + 2*1500, 'addons total = ' || (q->>'total');
-  assert (q->>'tail_lift_fee')::int = 600 and (q->>'helper_fee')::int = 3000, 'addon breakdown';
+  assert (q->>'total')::int = round((1500 + 131*38 + 8*150) * 0.75 / 10) * 10 + 1000 + 2*3000, 'addons total = ' || (q->>'total');
+  assert (q->>'tail_lift_fee')::int = 1000 and (q->>'helper_fee')::int = 6000, 'addon breakdown';
 end $$;
 
 -- --- customer creates + pays; no driver online yet -> stays searching -------
@@ -242,13 +242,14 @@ end $$;
 select auth.login('22222222-2222-2222-2222-222222222222');
 select public.driver_set_online(true, 25.09, 121.14);
 select auth.login('11111111-1111-1111-1111-111111111111');
-create temp table t4 as select * from public.create_order('{"pickup":{"name":"P","lat":25.04,"lng":121.09},"dest":{"name":"D","lat":24.9,"lng":121.05},"pallets":2,"cargo_type":"鋼材 / 金屬","tier":"dedicated","need_tail_lift":true,"helpers":1}'::jsonb);
+create temp table t4 as select * from public.create_order('{"pickup":{"name":"P","lat":25.04,"lng":121.09},"dest":{"name":"D","lat":24.9,"lng":121.05},"pallets":2,"cargo_type":"鋼材 / 金屬","tier":"dedicated","need_tail_lift":true,"helpers":1,"cargo_photo_url":"https://x.test/p.jpg"}'::jsonb);
 select public.pay_order_sandbox((select id from t4));
 do $$ declare o public.orders; begin
   o := pg_temp.o((select id from t4));
   assert o.status = 'searching', 'no tail-lift vehicle -> searching, got ' || o.status;
   assert o.need_tail_lift and o.helpers = 1, 'addons stored';
-  assert (o.quote_breakdown->>'helper_fee')::int = 1500 and (o.quote_breakdown->>'tail_lift_fee')::int = 600, 'addon fees in breakdown';
+  assert o.cargo_photo_url = 'https://x.test/p.jpg', 'cargo photo stored';
+  assert (o.quote_breakdown->>'helper_fee')::int = 3000 and (o.quote_breakdown->>'tail_lift_fee')::int = 1000, 'addon fees in breakdown';
 end $$;
 select auth.login('22222222-2222-2222-2222-222222222222');
 update public.vehicles set has_tail_lift = true where driver_id = public.my_driver_id();

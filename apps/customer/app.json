@@ -54,6 +54,13 @@
         {
           "sounds": []
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "大車叫車需要相機拍攝現場貨物照片，作為司機接單參考與出貨證明。",
+          "photosPermission": "大車叫車需要讀取相簿以選擇現場貨物照片。"
+        }
       ]
     ],
     "experiments": {

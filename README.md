@@ -44,6 +44,7 @@ App 端不能直接改 `orders`；兩支手機透過 Supabase Realtime 看到同
    EXPO_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
    EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
    EXPO_PUBLIC_BACKEND=supabase
+   EXPO_PUBLIC_GOOGLE_MAPS_KEY=（選填；設了地址搜尋改用 Google Places，找得到門牌與公司名，Netlify 也要加同名環境變數）
    ```
 7. 建立管理員：先用任一 App 註冊一個帳號，然後在 SQL Editor 執行
    `update public.profiles set role='admin' where id = (select id from auth.users where email='you@x.tw');`

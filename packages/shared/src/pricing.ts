@@ -11,8 +11,8 @@ export const DEFAULT_PRICING: PricingConfig = {
   serviceRadiusKm: 60,
   offerTimeoutSeconds: 15,
   maxPallets: 16,
-  tailLiftFee: 600,
-  helperFee: 1500,
+  tailLiftFee: 1000,
+  helperFee: 3000,
 };
 
 /** Kept for existing call sites; equals DEFAULT_PRICING. */

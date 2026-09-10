@@ -7,6 +7,7 @@ export * from './mockServer';
 export * from './supabaseClient';
 export * from './supabaseBackend';
 export * from './routing';
+export * from './photo';
 export * from './location';
 export * from './push';
 export * from './theme';

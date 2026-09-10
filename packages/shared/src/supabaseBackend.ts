@@ -41,6 +41,7 @@ type OrderRow = {
   truck_tier: 'dedicated' | 'backhaul';
   need_tail_lift: boolean;
   helpers: number;
+  cargo_photo_url?: string | null;
   estimated_km: number | string;
   distance_source: 'osrm' | 'google' | 'estimate';
   route_polyline: [number, number][] | null;
@@ -80,6 +81,7 @@ export function mapOrderRow(r: OrderRow): Order {
     tier: TIERS.find((t) => t.id === r.truck_tier) ?? TIERS[0],
     needTailLift: !!r.need_tail_lift,
     helpers: num(r.helpers),
+    cargoPhotoUrl: r.cargo_photo_url || undefined,
     km: num(r.estimated_km),
     distanceSource: r.distance_source,
     quote: {
@@ -134,8 +136,7 @@ function toHistory(o: Order): HistoryItem {
   };
 }
 
-const ORDER_COLS =
-  'id,order_no,customer_id,driver_id,offered_driver_id,offer_expires_at,pickup_name,pickup_addr,pickup_lat,pickup_lng,dest_name,dest_addr,dest_lat,dest_lng,pallets,cargo_type,note,truck_tier,need_tail_lift,helpers,estimated_km,distance_source,route_polyline,quoted_price,quote_breakdown,platform_fee,driver_amount,status,customer_name,customer_phone,customer_company,driver_name,driver_phone,driver_rating,vehicle_plate,vehicle_desc,rating,created_at,completed_at';
+const ORDER_COLS = '*'; // explicit lists broke every read when a column was added (0003)
 
 export function createSupabaseBackend(): Backend {
   const sb: SupabaseClient = getSupabase();
@@ -261,12 +262,24 @@ export function createSupabaseBackend(): Backend {
         serviceRadiusKm: data.service_radius_km,
         offerTimeoutSeconds: data.offer_timeout_seconds,
         maxPallets: 16,
-        tailLiftFee: num(data.tail_lift_fee, 600),
-        helperFee: num(data.helper_fee, 1500),
+        tailLiftFee: num(data.tail_lift_fee, 1000),
+        helperFee: num(data.helper_fee, 3000),
       };
     },
 
     /* ---- customer ---- */
+    async uploadCargoPhoto(localUri: string) {
+      const s = cachedSession ?? (await buildSession());
+      if (!s) throw new Error('not signed in');
+      const res = await fetch(localUri);
+      const blob = await res.blob();
+      const type = blob.type && blob.type.startsWith('image/') ? blob.type : 'image/jpeg';
+      const ext = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : type === 'image/heic' ? 'heic' : 'jpg';
+      const path = `${s.userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error } = await sb.storage.from('cargo-photos').upload(path, blob, { contentType: type, upsert: false });
+      if (error) throw new Error(error.message);
+      return sb.storage.from('cargo-photos').getPublicUrl(path).data.publicUrl;
+    },
     createOrder(input: OrderInput) {
       return rpcOrder('create_order', {
         p: {
@@ -278,6 +291,7 @@ export function createSupabaseBackend(): Backend {
           tier: input.tier.id,
           need_tail_lift: input.needTailLift,
           helpers: input.helpers,
+          cargo_photo_url: input.cargoPhotoUrl ?? null,
           km: input.km,
           distance_source: input.distanceSource,
           route_polyline: input.path,

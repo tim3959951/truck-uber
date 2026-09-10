@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, CARGO_TYPES, H1, RoundButton, Stepper, Tiny, colors, formatNTD, showAlert } from '@truck/shared';
+import { Button, CARGO_TYPES, H1, RoundButton, Stepper, Tiny, colors, formatNTD, pickCargoPhoto, showAlert, takeCargoPhoto } from '@truck/shared';
 import { useStore } from '../store';
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -17,7 +17,16 @@ const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 export default function Cargo() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { pallets, cargoId, note, pricing, needTailLift, helpers, set } = useStore();
+  const { pallets, cargoId, note, pricing, needTailLift, helpers, cargoPhotoUri, set } = useStore();
+
+  const snap = async (fn: () => Promise<string | null>) => {
+    try {
+      const uri = await fn();
+      if (uri) set({ cargoPhotoUri: uri });
+    } catch (e) {
+      showAlert('無法取得照片', (e as Error).message);
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top + 8 }}>
@@ -82,11 +91,24 @@ export default function Cargo() {
           <Tiny>司機本人只負責開車與綁繩帆布；需要人力搬運請加搬運工。</Tiny>
         </View>
 
-        <Button
-          title="拍攝現場棧板照片"
-          variant="secondary"
-          onPress={() => showAlert('原型示意', '正式版會開啟相機拍攝已打包的棧板照片，作為司機接單參考與理賠依據。')}
-        />
+        <View style={{ gap: 8 }}>
+          <Text style={s.label}>現場貨物照片（強烈建議）</Text>
+          <Tiny>拍已經打包好、準備出貨的實際貨態。司機接單前會看，也是出貨證明與運輸途中倒塌時的責任釐清依據。</Tiny>
+          {cargoPhotoUri ? (
+            <View style={{ gap: 8 }}>
+              <Image source={{ uri: cargoPhotoUri }} style={s.photo} resizeMode="cover" />
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Button title="重拍" variant="secondary" style={{ flex: 1 }} onPress={() => snap(takeCargoPhoto)} />
+                <Button title="移除" variant="secondary" style={{ flex: 1 }} onPress={() => set({ cargoPhotoUri: null })} />
+              </View>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Button title="拍照" variant="secondary" style={{ flex: 1 }} onPress={() => snap(takeCargoPhoto)} />
+              <Button title="從相簿選" variant="secondary" style={{ flex: 1 }} onPress={() => snap(pickCargoPhoto)} />
+            </View>
+          )}
+        </View>
       </ScrollView>
       <View style={[s.footer, { paddingBottom: insets.bottom + 16 }]}>
         <Button title="下一步：選擇車種" onPress={() => router.push('/tier')} />
@@ -96,6 +118,7 @@ export default function Cargo() {
 }
 
 const s = StyleSheet.create({
+  photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: colors.fill },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 14 },
   label: { fontSize: 12, fontWeight: '700', color: colors.ink2, letterSpacing: 0.5 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

@@ -92,6 +92,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
       tier: input.tier,
       needTailLift: input.needTailLift,
       helpers: input.helpers,
+      cargoPhotoUrl: input.cargoPhotoUrl,
       km: input.km,
       distanceSource: input.distanceSource,
       quote: q,
@@ -179,6 +180,9 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
     },
     getPricingConfig: async () => DEFAULT_PRICING,
 
+    async uploadCargoPhoto(localUri: string) {
+      return localUri;
+    },
     async createOrder(input) {
       clearAll();
       order = buildOrder(input);

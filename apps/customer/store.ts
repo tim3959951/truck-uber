@@ -37,6 +37,8 @@ type State = {
   pallets: number;
   cargoId: string;
   note: string;
+  /** local uri of the cargo photo taken on this device (uploaded at requestTruck) */
+  cargoPhotoUri: string | null;
   tierId: 'dedicated' | 'backhaul';
   needTailLift: boolean;
   helpers: number;
@@ -81,6 +83,7 @@ export const useStore = create<State>((set, get) => ({
   pallets: 8,
   cargoId: 'soil',
   note: '',
+  cargoPhotoUri: null,
   tierId: 'dedicated',
   needTailLift: false,
   helpers: 0,
@@ -133,6 +136,15 @@ export const useStore = create<State>((set, get) => ({
     const route = s.route ?? (await getRoute(s.pickup, s.drop));
     set({ busy: true });
     try {
+      let cargoPhotoUrl: string | undefined;
+      if (s.cargoPhotoUri) {
+        try {
+          cargoPhotoUrl = await backend.uploadCargoPhoto(s.cargoPhotoUri);
+        } catch (e) {
+          // photo is optional: the order still goes out, the customer is told
+          showToast('照片上傳失敗，訂單不含照片：' + (e as Error).message);
+        }
+      }
       const order = await backend.createOrder({
         pickup: s.pickup,
         drop: s.drop,
@@ -142,13 +154,14 @@ export const useStore = create<State>((set, get) => ({
         tier: tierById(s.tierId),
         needTailLift: s.needTailLift,
         helpers: s.helpers,
+        cargoPhotoUrl,
         km: route.km,
         distanceSource: route.source,
         path: route.path,
       });
       get().applyOrder(order);
       // add-ons and note are per-order; don't carry them into the next booking
-      set({ needTailLift: false, helpers: 0, note: '', route: null });
+      set({ needTailLift: false, helpers: 0, note: '', cargoPhotoUri: null, route: null });
       return order;
     } finally {
       set({ busy: false });

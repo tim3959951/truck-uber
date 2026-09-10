@@ -1,4 +1,4 @@
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Avatar,
@@ -78,6 +78,7 @@ export default function DriverHome() {
             <RouteBlock pickup={o.pickup} drop={o.drop} />
             {o.cargo.hint ? <Tiny>{o.cargo.hint}</Tiny> : null}
             {o.note ? <Tiny>備註：{o.note}</Tiny> : null}
+            <CargoPhoto url={o.cargoPhotoUrl} />
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Button title="拒絕" variant="secondary" style={{ flex: 1 }} onPress={decline} disabled={busy} />
               <Button title="接單" variant="go" style={{ flex: 1 }} onPress={() => accept().catch((e) => showAlert('接單失敗', (e as Error).message))} loading={busy} />
@@ -151,6 +152,7 @@ function ActiveTrip({ order: o, busy, onAdvance, bottom }: { order: Order; busy:
         {o.helpers > 0 ? <Tag label={`搬運工 × ${o.helpers}`} tone="warn" /> : null}
       </View>
       {o.note ? <Tiny>備註：{o.note}</Tiny> : null}
+      <CargoPhoto url={o.cargoPhotoUrl} />
       {o.status === 'accepted' ? (
         <Button title="已抵達裝貨點" onPress={() => onAdvance('arrived')} loading={busy} />
       ) : o.status === 'arrived' ? (
@@ -163,6 +165,17 @@ function ActiveTrip({ order: o, busy, onAdvance, bottom }: { order: Order; busy:
         <Button title="已完成 · 等待下一筆派單" variant="secondary" disabled />
       )}
     </Sheet>
+  );
+}
+
+/** 客戶拍的現場貨物照片；點一下用瀏覽器開大圖 */
+function CargoPhoto({ url }: { url?: string }) {
+  if (!url) return null;
+  return (
+    <Pressable onPress={() => Linking.openURL(url)} style={{ gap: 4 }}>
+      <Image source={{ uri: url }} style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 10, backgroundColor: '#eee' }} resizeMode="cover" />
+      <Tiny>現場貨物照片（點一下放大）</Tiny>
+    </Pressable>
   );
 }
 

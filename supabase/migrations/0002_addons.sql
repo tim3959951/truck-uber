@@ -5,8 +5,8 @@
 -- ============================================================================
 
 alter table public.pricing_config
-  add column if not exists tail_lift_fee integer not null default 600,    -- 每趟：車輛需配備油壓升降尾門
-  add column if not exists helper_fee    integer not null default 1500;   -- 每人每趟：專業隨車搬運工
+  add column if not exists tail_lift_fee integer not null default 1000,    -- 每趟：車輛需配備油壓升降尾門
+  add column if not exists helper_fee    integer not null default 3000;   -- 每人每趟：專業隨車搬運工
 
 alter table public.vehicles
   add column if not exists has_tail_lift boolean not null default false;

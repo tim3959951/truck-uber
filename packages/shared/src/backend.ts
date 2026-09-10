@@ -35,6 +35,8 @@ export interface Backend {
 
   // ---- orders (customer) ---------------------------------------------------
   /** Creates the order in `created` (awaiting payment). Price is computed server-side. */
+  /** Uploads a local image (file:/blob:/data: uri) and returns a public URL. Throws on failure. */
+  uploadCargoPhoto(localUri: string): Promise<string>;
   createOrder(input: OrderInput): Promise<Order>;
   /** Sandbox payment → `searching` and dispatch. */
   payOrderSandbox(orderId: string): Promise<Order>;

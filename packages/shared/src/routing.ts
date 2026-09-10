@@ -38,14 +38,87 @@ export async function getRoute(a: LatLng, b: LatLng, timeoutMs = 7000): Promise<
   }
 }
 
-/* ---------- geocoding (Nominatim, OSM) ---------- */
+/* ---------- geocoding ---------- */
+// Provider order: Google Places (New) when EXPO_PUBLIC_GOOGLE_MAPS_KEY is set, else Nominatim (OSM).
+// Nominatim cannot find Taiwan street numbers (…路100號) or business names (龍盛資材有限公司),
+// so production needs the Google key; Nominatim stays as the zero-config fallback.
 const NOMINATIM_URL = (process.env.EXPO_PUBLIC_NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
+const GOOGLE_KEY = (process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY || '').trim();
 
-export type GeocodeHit = { name: string; addr: string; lat: number; lng: number };
+export type GeocodeHit = {
+  name: string;
+  addr: string;
+  /** missing until `resolveHit` is called (Google Autocomplete only returns a place id) */
+  lat?: number;
+  lng?: number;
+  placeId?: string;
+};
 
-/** Free-text address search limited to Taiwan. Nominatim asks for ≤ 1 req/s — debounce in the UI. */
-export async function geocode(q: string): Promise<GeocodeHit[]> {
+export const geocodeProvider = (): 'google' | 'nominatim' => (GOOGLE_KEY ? 'google' : 'nominatim');
+
+// One autocomplete "session" = the keystrokes leading to one Place Details call; Google bills it as a unit.
+let sessionToken = '';
+const newSession = () => (sessionToken = Math.random().toString(36).slice(2) + Date.now().toString(36));
+
+/** Free-text search limited to Taiwan. Debounce in the UI (Nominatim asks for ≤ 1 req/s). */
+export async function geocode(q: string, near?: LatLng): Promise<GeocodeHit[]> {
   if (q.trim().length < 2) return [];
+  return GOOGLE_KEY ? geocodeGoogle(q, near) : geocodeNominatim(q);
+}
+
+/** Fills lat/lng for a hit chosen from the list (Google needs a second call; Nominatim hits already have them). */
+export async function resolveHit(h: GeocodeHit): Promise<GeocodeHit | null> {
+  if (h.lat != null && h.lng != null) return h;
+  if (!h.placeId || !GOOGLE_KEY) return null;
+  try {
+    const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(h.placeId)}?languageCode=zh-TW&regionCode=TW&sessionToken=${sessionToken}`, {
+      headers: { 'X-Goog-Api-Key': GOOGLE_KEY, 'X-Goog-FieldMask': 'id,displayName,formattedAddress,location' },
+    });
+    newSession();
+    if (!res.ok) return null;
+    const p = (await res.json()) as { displayName?: { text: string }; formattedAddress?: string; location?: { latitude: number; longitude: number } };
+    if (!p.location) return null;
+    return { name: p.displayName?.text || h.name, addr: tidyTwAddress(p.formattedAddress || h.addr), lat: p.location.latitude, lng: p.location.longitude, placeId: h.placeId };
+  } catch {
+    return null;
+  }
+}
+
+async function geocodeGoogle(q: string, near?: LatLng): Promise<GeocodeHit[]> {
+  if (!sessionToken) newSession();
+  try {
+    const body: Record<string, unknown> = {
+      input: q,
+      languageCode: 'zh-TW',
+      regionCode: 'TW',
+      includedRegionCodes: ['tw'],
+      sessionToken,
+    };
+    if (near) body.locationBias = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 50000 } };
+    const res = await fetch('https://places.googleapis.com/v1/places:autocomplete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_KEY },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      suggestions?: { placePrediction?: { placeId: string; structuredFormat?: { mainText?: { text: string }; secondaryText?: { text: string } }; text?: { text: string } } }[];
+    };
+    return (data.suggestions ?? [])
+      .map((s) => s.placePrediction)
+      .filter((p): p is NonNullable<typeof p> => !!p)
+      .slice(0, 6)
+      .map((p) => ({
+        name: p.structuredFormat?.mainText?.text || p.text?.text || '',
+        addr: tidyTwAddress(p.structuredFormat?.secondaryText?.text || ''),
+        placeId: p.placeId,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+async function geocodeNominatim(q: string): Promise<GeocodeHit[]> {
   try {
     const url = `${NOMINATIM_URL}/search?format=jsonv2&countrycodes=tw&accept-language=zh-TW&limit=6&q=${encodeURIComponent(q)}`;
     const res = await fetch(url, { headers: { 'User-Agent': 'truck-uber-mvp/0.1 (contact: app)' } });
@@ -61,3 +134,6 @@ export async function geocode(q: string): Promise<GeocodeHit[]> {
     return [];
   }
 }
+
+/** "台灣桃園市中壢區…" → "桃園市中壢區…"; drops postal code prefix Google adds. */
+const tidyTwAddress = (a: string) => a.replace(/^(\d{3,6})?\s*(台灣|臺灣)?\s*/, '').trim();

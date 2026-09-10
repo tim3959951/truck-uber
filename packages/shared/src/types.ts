@@ -98,6 +98,8 @@ export type Order = {
   tier: Tier;
   needTailLift: boolean;
   helpers: number;
+  /** 客戶下單時拍的現場貨物照片（公開網址） */
+  cargoPhotoUrl?: string;
   km: number;
   distanceSource: 'osrm' | 'google' | 'estimate';
   quote: Quote;
@@ -126,6 +128,7 @@ export type OrderInput = {
   tier: Tier;
   needTailLift: boolean;
   helpers: number;
+  cargoPhotoUrl?: string;
   km: number;
   distanceSource: 'osrm' | 'google' | 'estimate';
   path: [number, number][];

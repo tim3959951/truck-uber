@@ -122,7 +122,7 @@ async function render() {
           <td><b>${esc(o.order_no)}</b><br><span class="muted">${esc(o.id.slice(0, 8))}</span></td><td>${pill(o.status)}</td><td>${ts(o.created_at)}</td>
           <td>${esc(o.customer_company || o.customer_name)}<br><span class="muted">${esc(o.customer_phone)}</span></td>
           <td>${esc(o.driver_name || '—')}<br><span class="muted">${esc(o.vehicle_plate || '')}</span></td>
-          <td>${esc(o.pickup_name)} → ${esc(o.dest_name)}</td><td>${o.pallets} 托 · ${esc(o.cargo_type)}${o.need_tail_lift ? '<br><span class="pill warn">需尾門</span>' : ''}${o.helpers ? `<br><span class="pill warn">搬工×${o.helpers}</span>` : ''}</td><td>${esc(o.truck_tier)}</td>
+          <td>${esc(o.pickup_name)} → ${esc(o.dest_name)}</td><td>${o.pallets} 托 · ${esc(o.cargo_type)}${o.need_tail_lift ? '<br><span class="pill warn">需尾門</span>' : ''}${o.helpers ? `<br><span class="pill warn">搬工×${o.helpers}</span>` : ''}${o.cargo_photo_url ? `<br><a href="${esc(o.cargo_photo_url)}" target="_blank" rel="noopener">📷 貨物照片</a>` : ''}</td><td>${esc(o.truck_tier)}</td>
           <td>${o.estimated_km} <span class="muted">${esc(o.distance_source)}</span></td><td>${ntd(o.quoted_price)}</td><td>${ntd(o.platform_fee)}</td><td>${ntd(o.driver_amount)}</td><td>${o.rating ? '★' + o.rating : ''}</td>
           <td><button class="sm" onclick="events('${o.id}')">事件</button>${['completed', 'cancelled'].includes(o.status) ? '' : `<button class="sm danger" onclick="cancelOrder('${o.id}')">取消</button>`}</td></tr>`) +
         `<div id="events"></div>`;

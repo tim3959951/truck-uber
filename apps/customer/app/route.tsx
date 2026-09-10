@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, GeocodeHit, H1, H2, LOCATIONS, Location, Row, RoundButton, Tiny, colors, estimateRoadKm, geocode, getCurrentLocation } from '@truck/shared';
+import { Button, GeocodeHit, H1, H2, LOCATIONS, Location, Row, RoundButton, Tiny, colors, estimateRoadKm, geocode, geocodeProvider, getCurrentLocation, resolveHit, showAlert } from '@truck/shared';
 import { useStore } from '../store';
 
 export default function RouteScreen() {
@@ -27,7 +27,7 @@ export default function RouteScreen() {
     }
     timer.current = setTimeout(async () => {
       setSearching(true);
-      setHits(await geocode(q));
+      setHits(await geocode(q, editing === 'drop' ? pickup : undefined));
       setSearching(false);
     }, 700);
     return () => {
@@ -42,6 +42,17 @@ export default function RouteScreen() {
     } else set({ drop: l, route: null });
     setQ('');
     setHits([]);
+  };
+
+  const chooseHit = async (h: GeocodeHit, i: number) => {
+    setSearching(true);
+    const r = await resolveHit(h);
+    setSearching(false);
+    if (!r || r.lat == null || r.lng == null) {
+      showAlert('找不到座標', '這個地點抓不到位置，請換個關鍵字或直接輸入完整地址。');
+      return;
+    }
+    choose({ id: `geo-${i}`, name: r.name, addr: r.addr, lat: r.lat, lng: r.lng });
   };
 
   const useMyLocation = async () => {
@@ -91,11 +102,18 @@ export default function RouteScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+        {q.trim().length >= 2 && !searching && hits.length === 0 ? (
+          <Tiny style={{ marginTop: 8 }}>
+            {geocodeProvider() === 'nominatim'
+              ? '找不到。目前用的是 OpenStreetMap 免費地圖，搜不到門牌號碼與公司名稱；可先搜「路名」或「地標」，再用「目前位置」。'
+              : '找不到這個地點，試試加上縣市或路名。'}
+          </Tiny>
+        ) : null}
         {hits.length > 0 ? (
           <>
             <H2 style={{ marginTop: 8 }}>搜尋結果</H2>
             {hits.map((h, i) => (
-              <Row key={i} title={h.name} subtitle={h.addr} icon={<Ionicons name="location-outline" size={18} />} onPress={() => choose({ id: `geo-${i}`, name: h.name, addr: h.addr, lat: h.lat, lng: h.lng })} />
+              <Row key={i} title={h.name} subtitle={h.addr} icon={<Ionicons name="location-outline" size={18} />} onPress={() => chooseHit(h, i)} />
             ))}
           </>
         ) : null}
