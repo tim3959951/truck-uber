@@ -63,7 +63,11 @@ const newSession = () => (sessionToken = Math.random().toString(36).slice(2) + D
 /** Free-text search limited to Taiwan. Debounce in the UI (Nominatim asks for ≤ 1 req/s). */
 export async function geocode(q: string, near?: LatLng): Promise<GeocodeHit[]> {
   if (q.trim().length < 2) return [];
-  return GOOGLE_KEY ? geocodeGoogle(q, near) : geocodeNominatim(q);
+  if (GOOGLE_KEY) {
+    const g = await geocodeGoogle(q, near);
+    if (g) return g; // null = Google call failed (key/API not enabled/quota) → fall back
+  }
+  return geocodeNominatim(q);
 }
 
 /** Fills lat/lng for a hit chosen from the list (Google needs a second call; Nominatim hits already have them). */
@@ -84,7 +88,7 @@ export async function resolveHit(h: GeocodeHit): Promise<GeocodeHit | null> {
   }
 }
 
-async function geocodeGoogle(q: string, near?: LatLng): Promise<GeocodeHit[]> {
+async function geocodeGoogle(q: string, near?: LatLng): Promise<GeocodeHit[] | null> {
   if (!sessionToken) newSession();
   try {
     const body: Record<string, unknown> = {
@@ -100,7 +104,7 @@ async function geocodeGoogle(q: string, near?: LatLng): Promise<GeocodeHit[]> {
       headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': GOOGLE_KEY },
       body: JSON.stringify(body),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const data = (await res.json()) as {
       suggestions?: { placePrediction?: { placeId: string; structuredFormat?: { mainText?: { text: string }; secondaryText?: { text: string } }; text?: { text: string } } }[];
     };
@@ -114,7 +118,7 @@ async function geocodeGoogle(q: string, near?: LatLng): Promise<GeocodeHit[]> {
         placeId: p.placeId,
       }));
   } catch {
-    return [];
+    return null;
   }
 }
 

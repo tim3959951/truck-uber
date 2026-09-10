@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, CARGO_TYPES, H1, RoundButton, Stepper, Tiny, colors, formatNTD, pickCargoPhoto, showAlert, takeCargoPhoto } from '@truck/shared';
+import { Button, CARGO_TYPES, H1, RoundButton, Stepper, Tiny, classById, colors, formatNTD, pickCargoPhoto, showAlert, takeCargoPhoto } from '@truck/shared';
 import { useStore } from '../store';
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -17,7 +17,9 @@ const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 export default function Cargo() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { pallets, cargoId, note, pricing, needTailLift, helpers, cargoPhotoUri, set } = useStore();
+  const { pallets, cargoId, note, pricing, needTailLift, helpers, cargoPhotoUri, loadMode, weightT, quantityDesc, classId, classes, set, setCargo } = useStore();
+  const cls = classById(classes, classId);
+  const maxPallets = Math.max(...classes.filter((k) => k.active).map((k) => k.maxPallets), 1);
 
   const snap = async (fn: () => Promise<string | null>) => {
     try {
@@ -36,8 +38,57 @@ export default function Cargo() {
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, gap: 18, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 6 }}>
-          <Text style={s.label}>棧板數量（托）</Text>
-          <Stepper value={pallets} min={1} max={pricing.maxPallets} unit="托" hint={`17噸車最多 ${pricing.maxPallets} 托`} onChange={(v) => set({ pallets: v })} />
+          <Text style={s.label}>計量方式</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['pallet', 'full'] as const).map((m) => {
+              const on = loadMode === m;
+              return (
+                <Pressable key={m} onPress={() => setCargo({ loadMode: m })} style={[s.mode, on && s.modeOn]}>
+                  <Ionicons name={m === 'pallet' ? 'layers-outline' : 'bus-outline'} size={20} color={on ? '#fff' : colors.ink} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.modeTitle, on && { color: '#fff' }]}>{m === 'pallet' ? '棧板（按托計價）' : '整車（付滿載價）'}</Text>
+                    <Text style={[s.addonSub, on && { color: '#ddd' }]}>{m === 'pallet' ? '貨已打棧板，填幾托' : '鋼材、機械等不用棧板的貨'}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {loadMode === 'pallet' ? (
+          <View style={{ gap: 6 }}>
+            <Text style={s.label}>棧板數量（托）</Text>
+            <Stepper value={pallets} min={1} max={maxPallets} unit="托" hint={`${cls.name}單層最多 ${cls.maxPallets} 托；超過會自動建議更大的車`} onChange={(v) => setCargo({ pallets: v })} />
+          </View>
+        ) : (
+          <View style={{ gap: 6 }}>
+            <Text style={s.label}>數量描述</Text>
+            <TextInput
+              value={quantityDesc}
+              onChangeText={(t) => setCargo({ quantityDesc: t })}
+              placeholder="例：H型鋼 12 支、6 米長；或 機台 1 台 3.2 噸"
+              placeholderTextColor={colors.ink3}
+              style={s.input}
+            />
+          </View>
+        )}
+
+        <View style={{ gap: 6 }}>
+          <Text style={s.label}>總重量（噸，選填）</Text>
+          <TextInput
+            value={weightT == null ? '' : String(weightT)}
+            onChangeText={(t) => {
+              const v = parseFloat(t.replace(/[^0-9.]/g, ''));
+              setCargo({ weightT: Number.isFinite(v) && v > 0 ? v : null });
+            }}
+            keyboardType="decimal-pad"
+            placeholder="例：8.5（填了才能幫你擋掉載不動的車）"
+            placeholderTextColor={colors.ink3}
+            style={s.input}
+          />
+          <Tiny>
+            系統建議：<Text style={{ fontWeight: '800', color: colors.ink }}>{cls.name}</Text>（{cls.nickname}，載重 {cls.maxWeightT} 噸、單層 {cls.maxPallets} 托）— 下一步可自己換車型
+          </Tiny>
         </View>
 
         <View style={{ gap: 6 }}>
@@ -118,6 +169,9 @@ export default function Cargo() {
 }
 
 const s = StyleSheet.create({
+  mode: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: colors.line, borderRadius: 12, padding: 10 },
+  modeOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  modeTitle: { fontWeight: '800', fontSize: 13 },
   photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: colors.fill },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 14 },
   label: { fontSize: 12, fontWeight: '700', color: colors.ink2, letterSpacing: 0.5 },

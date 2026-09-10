@@ -3,7 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, GeocodeHit, H1, H2, LOCATIONS, Location, Row, RoundButton, Tiny, colors, estimateRoadKm, geocode, geocodeProvider, getCurrentLocation, resolveHit, showAlert } from '@truck/shared';
+import { Button, GeocodeHit, H1, H2, LOCATIONS, Location, RoundButton, Row, Tiny, colors, estimateRoadKm, geocode, geocodeProvider, getCurrentLocation, loadLabel, resolveHit, showAlert } from '@truck/shared';
 import { useStore } from '../store';
 
 export default function RouteScreen() {
@@ -136,7 +136,7 @@ export default function RouteScreen() {
           <>
             <H2 style={{ marginTop: 20 }}>最近送過</H2>
             {history.slice(0, 3).map((h) => (
-              <Row key={h.id} title={h.to} subtitle={`從 ${h.from} · ${h.pallets} 托`} icon={<Ionicons name="time-outline" size={18} />} />
+              <Row key={h.id} title={h.to} subtitle={`從 ${h.from} · ${loadLabel(h)}`} icon={<Ionicons name="time-outline" size={18} />} />
             ))}
           </>
         ) : null}

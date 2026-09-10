@@ -1,13 +1,13 @@
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, Button, H1, Row, Tag, Tiny, colors, showAlert } from '@truck/shared';
+import { Avatar, Button, DEFAULT_CLASSES, H1, Row, Tag, Tiny, colors, showAlert } from '@truck/shared';
 import { backend, useStore } from '../../store';
 
 const V = { pending: '待審核', verified: '已驗證', rejected: '未通過' } as const;
 
 export default function Account() {
   const insets = useSafeAreaInsets();
-  const { session, signOut, setTailLift } = useStore();
+  const { session, signOut, setTailLift, setVehicleClass } = useStore();
   const rows: [string, string][] = [
     ['車輛', session?.vehicle?.desc ?? '未設定'],
     ['車牌', session?.vehicle?.plate ?? '未設定'],
@@ -28,6 +28,21 @@ export default function Account() {
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Tag label={`司機 ${V[session?.verification ?? 'pending']}`} tone={session?.verification === 'verified' ? 'go' : 'warn'} />
         <Tag label={`車輛 ${V[session?.vehicle?.verification ?? 'pending']}`} tone={session?.vehicle?.verification === 'verified' ? 'go' : 'warn'} />
+      </View>
+      <View style={{ gap: 8 }}>
+        <Text style={{ fontWeight: '700', fontSize: 15 }}>我的車型級距</Text>
+        <Tiny>派單只派同級距的訂單；改了立刻生效。</Tiny>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {DEFAULT_CLASSES.map((k) => {
+            const on = session?.vehicle?.classId === k.id;
+            return (
+              <Pressable key={k.id} onPress={() => setVehicleClass(k.id).catch((e) => showAlert('無法更新', (e as Error).message))} style={{ width: '47%', flexGrow: 1, borderWidth: 1.5, borderColor: on ? colors.ink : colors.line, backgroundColor: on ? colors.ink : '#fff', borderRadius: 12, padding: 10 }}>
+                <Text style={{ fontWeight: '800', color: on ? '#fff' : colors.ink }}>{k.name}</Text>
+                <Tiny style={on ? { color: '#ddd' } : undefined}>{k.nickname} · 總重 {k.grossT}</Tiny>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
       <View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>

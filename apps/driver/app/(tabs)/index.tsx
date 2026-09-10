@@ -1,21 +1,6 @@
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Avatar,
-  Button,
-  H2,
-  MapView,
-  Order,
-  Progress,
-  RouteBlock,
-  RoundButton,
-  Sheet,
-  Tag,
-  Tiny,
-  Toast,
-  colors,
-  formatNTD,
-  kmToMinutes, showAlert, } from '@truck/shared';
+import { Avatar, Button, DEFAULT_CLASSES, H2, MapView, Order, Progress, RoundButton, RouteBlock, Sheet, Tag, Tiny, Toast, className, colors, formatNTD, kmToMinutes, loadLabel, showAlert } from '@truck/shared';
 import { useStore } from '../../store';
 
 const FALLBACK_CENTER = { lat: 25.09, lng: 121.14 };
@@ -69,7 +54,9 @@ export default function DriverHome() {
               {formatNTD(o.quote.driverAmount)} <Text style={s.fareSub}>司機實收（運費 {formatNTD(o.quote.total)}）</Text>
             </Text>
             <View style={s.tags}>
-              <Tag label={`${o.pallets} 托`} />
+              <Tag label={className(DEFAULT_CLASSES, o.classId)} />
+              <Tag label={loadLabel(o)} />
+              {o.weightT ? <Tag label={`${o.weightT} 噸`} /> : null}
               <Tag label={o.cargo.name} />
               <Tag label={`${o.km} km · 約 ${kmToMinutes(o.km)} 分`} />
               {o.needTailLift ? <Tag label="需升降尾門" tone="warn" /> : null}
@@ -145,7 +132,7 @@ function ActiveTrip({ order: o, busy, onAdvance, bottom }: { order: Order; busy:
         <RoundButton glyph="✆" onPress={call} />
       </View>
       <View style={s.tags}>
-        <Tag label={`${o.pallets} 托 · ${o.cargo.name}`} />
+        <Tag label={`${className(DEFAULT_CLASSES, o.classId)} · ${loadLabel(o)} · ${o.cargo.name}`} />
         <Tag label={o.tier.name} />
         <Tag label={`實收 ${formatNTD(o.quote.driverAmount)}`} tone="go" />
         {o.needTailLift ? <Tag label="需升降尾門" tone="warn" /> : null}

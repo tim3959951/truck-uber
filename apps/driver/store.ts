@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  DEFAULT_CLASSES,
   Backend,
   DriverLocation,
   EarningsSummary,
@@ -43,6 +44,7 @@ type State = {
   loadEarnings: () => Promise<void>;
   loadHistory: () => Promise<void>;
   setTailLift: (has: boolean) => Promise<void>;
+  setVehicleClass: (classId: string) => Promise<void>;
   applyOrder: (o: Order | null) => void;
 };
 
@@ -174,7 +176,12 @@ export const useStore = create<State>((set, get) => ({
     await backend.setVehicleTailLift(has);
     const s = get().session;
     if (s?.vehicle) set({ session: { ...s, vehicle: { ...s.vehicle, hasTailLift: has } } });
+  },  async setVehicleClass(classId) {
+    await backend.setVehicleClass(classId);
+    const s = get().session;
+    if (s?.vehicle) set({ session: { ...s, vehicle: { ...s.vehicle, classId, desc: s.vehicle.desc.replace(/ · .*$/, '') + ' · ' + (DEFAULT_CLASSES.find((k) => k.id === classId)?.name ?? classId) } } });
   },
+
 
   applyOrder(o) {
     const prev = get().order;

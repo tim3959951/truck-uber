@@ -40,6 +40,25 @@ export type Quote = {
 
 export type Addons = { needTailLift: boolean; helpers: number };
 
+/** 棧板模式（按托計價）或整車（付滿載價，數量用文字描述） */
+export type LoadMode = 'pallet' | 'full';
+
+/** Mirrors public.vehicle_classes — 車型級距，各有自己的費率與上限；後台可改。 */
+export type VehicleClass = {
+  id: string;
+  name: string;
+  nickname: string;
+  sort: number;
+  active: boolean;
+  baseFare: number;
+  perKm: number;
+  perPallet: number;
+  maxPallets: number;
+  maxWeightT: number;
+  deckM: number;
+  grossT: string;
+};
+
 /** Mirrors public.pricing_config — editable by admin, never hard-coded in screens. */
 export type PricingConfig = {
   baseFare: number;
@@ -98,6 +117,10 @@ export type Order = {
   tier: Tier;
   needTailLift: boolean;
   helpers: number;
+  classId: string;
+  loadMode: LoadMode;
+  weightT?: number;
+  quantityDesc: string;
   /** 客戶下單時拍的現場貨物照片（公開網址） */
   cargoPhotoUrl?: string;
   km: number;
@@ -128,6 +151,10 @@ export type OrderInput = {
   tier: Tier;
   needTailLift: boolean;
   helpers: number;
+  classId: string;
+  loadMode: LoadMode;
+  weightT?: number;
+  quantityDesc?: string;
   cargoPhotoUrl?: string;
   km: number;
   distanceSource: 'osrm' | 'google' | 'estimate';
@@ -141,6 +168,9 @@ export type HistoryItem = {
   from: string;
   to: string;
   pallets: number;
+  loadMode?: LoadMode;
+  quantityDesc?: string;
+  classId?: string;
   cargo: string;
   total: number;
   driverAmount: number;
@@ -171,7 +201,7 @@ export type Session = {
   driverRating?: number;
   driverTrips?: number;
   verification?: 'pending' | 'verified' | 'rejected';
-  vehicle?: { plate: string; desc: string; verification: 'pending' | 'verified' | 'rejected'; hasTailLift: boolean };
+  vehicle?: { plate: string; desc: string; verification: 'pending' | 'verified' | 'rejected'; hasTailLift: boolean; classId: string };
 };
 
 export type SignUpInput = {
@@ -184,6 +214,7 @@ export type SignUpInput = {
   plate?: string;
   makeModel?: string;
   hasTailLift?: boolean;
+  classId?: string;
 };
 
 export type DriverLocation = { lat: number; lng: number; heading?: number; speed?: number };

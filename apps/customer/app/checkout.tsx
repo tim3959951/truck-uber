@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, H1, H2, RouteBlock, Tag, Tiny, colors, formatNTD, showAlert } from '@truck/shared';
+import { Button, H1, H2, RouteBlock, Tag, Tiny, className, colors, formatNTD, loadLabel, showAlert } from '@truck/shared';
 import { useStore } from '../store';
 
 /**
@@ -13,7 +13,7 @@ import { useStore } from '../store';
 export default function Checkout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { order: o, busy, pay, cancel } = useStore();
+  const { order: o, busy, pay, cancel, classes } = useStore();
   if (!o) return null;
 
   const onPay = async () => {
@@ -36,7 +36,8 @@ export default function Checkout() {
         <H1>確認付款</H1>
         <RouteBlock pickup={o.pickup} drop={o.drop} />
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
-          <Tag label={`${o.pallets} 托 · ${o.cargo.name}`} />
+          <Tag label={`${loadLabel(o)} · ${o.cargo.name}`} />
+          <Tag label={className(classes, o.classId)} />
           <Tag label={o.tier.name} />
           <Tag label={`${o.km} km`} tone={o.distanceSource === 'osrm' ? 'go' : 'warn'} />
           {o.needTailLift ? <Tag label="需升降尾門" tone="warn" /> : null}
@@ -45,7 +46,7 @@ export default function Checkout() {
 
         <View style={s.summary}>
           <Line label="基本里程費" value={formatNTD(o.quote.distanceFee)} />
-          <Line label={`棧板費（${o.pallets} 托）`} value={formatNTD(o.quote.palletFee)} />
+          <Line label={o.loadMode === 'full' ? '整車費（滿載）' : `棧板費（${o.pallets} 托）`} value={formatNTD(o.quote.palletFee)} />
           {o.quote.factor < 1 ? <Line label="回頭車折扣" value={`−${formatNTD(o.quote.subtotal - o.quote.baseTotal)}`} /> : null}
           {o.quote.tailLiftFee > 0 ? <Line label="升降尾門" value={formatNTD(o.quote.tailLiftFee)} /> : null}
           {o.quote.helperFee > 0 ? <Line label={`隨車搬運工 × ${o.helpers}`} value={formatNTD(o.quote.helperFee)} /> : null}

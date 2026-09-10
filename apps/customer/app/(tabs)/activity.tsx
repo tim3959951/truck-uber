@@ -3,7 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { H1, H2, Row, Tiny, colors, formatNTD } from '@truck/shared';
+import { H1, H2, Row, Tiny, colors, formatNTD, loadLabel } from '@truck/shared';
 import { useStore } from '../../store';
 
 export default function Activity() {
@@ -38,7 +38,7 @@ export default function Activity() {
           <Row
             key={h.id}
             title={`${h.from} → ${h.to}`}
-            subtitle={`${h.date} · ${h.pallets} 托 ${h.cargo}${h.status === 'cancelled' ? ' · 已取消' : ''}`}
+            subtitle={`${h.date} · ${loadLabel(h)} ${h.cargo}${h.status === 'cancelled' ? ' · 已取消' : ''}`}
             icon={<Ionicons name={h.status === 'cancelled' ? 'close-circle-outline' : 'bus-outline'} size={18} />}
             right={<Text style={{ fontWeight: '800', color: h.status === 'cancelled' ? colors.ink3 : colors.ink }}>{formatNTD(h.total)}</Text>}
           />

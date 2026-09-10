@@ -31,7 +31,7 @@ export default function Receipt() {
 
         <View style={s.summary}>
           <Line label={`基本里程費（${o.km} km）`} value={formatNTD(o.quote.distanceFee)} />
-          <Line label={`棧板費（${o.pallets} 托）`} value={formatNTD(o.quote.palletFee)} />
+          <Line label={o.loadMode === 'full' ? '整車費（滿載）' : `棧板費（${o.pallets} 托）`} value={formatNTD(o.quote.palletFee)} />
           {o.quote.factor < 1 ? <Line label="回頭車折扣" value={`−${formatNTD(o.quote.subtotal - o.quote.baseTotal)}`} /> : null}
           {o.quote.tailLiftFee > 0 ? <Line label="升降尾門" value={formatNTD(o.quote.tailLiftFee)} /> : null}
           {o.quote.helperFee > 0 ? <Line label={`隨車搬運工 × ${o.helpers}`} value={formatNTD(o.quote.helperFee)} /> : null}

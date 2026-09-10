@@ -8,7 +8,7 @@
  *  - role 'driver':   mock customers send requests while you are online.
  */
 import type { Backend, Unsubscribe } from './backend';
-import { CARGO_TYPES, LOCATIONS, MOCK_CUSTOMER, MOCK_DRIVER, MOCK_HISTORY, TIERS } from './data';
+import { CARGO_TYPES, DEFAULT_CLASSES, LOCATIONS, MOCK_CUSTOMER, MOCK_DRIVER, MOCK_HISTORY, TIERS, classById } from './data';
 import { bearing, DEFAULT_PRICING, defaultEngine, routePath } from './pricing';
 import type { DriverLocation, HistoryItem, Order, OrderInput, OrderStatus, Session, SignUpInput } from './types';
 
@@ -80,7 +80,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
   }
 
   function buildOrder(input: OrderInput): Order {
-    const q = defaultEngine.quote(input.km, input.pallets, input.tier, { needTailLift: input.needTailLift, helpers: input.helpers });
+    const q = defaultEngine.quote(input.km, input.pallets, input.tier, { needTailLift: input.needTailLift, helpers: input.helpers }, classById(DEFAULT_CLASSES, input.classId), input.loadMode);
     return {
       id: 'mock-' + seq,
       orderNo: 'TK-' + seq++,
@@ -93,6 +93,10 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
       needTailLift: input.needTailLift,
       helpers: input.helpers,
       cargoPhotoUrl: input.cargoPhotoUrl,
+      classId: input.classId,
+      loadMode: input.loadMode,
+      weightT: input.weightT,
+      quantityDesc: input.quantityDesc ?? '',
       km: input.km,
       distanceSource: input.distanceSource,
       quote: q,
@@ -137,7 +141,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
       const tier = TIERS[Math.random() < 0.7 ? 0 : 1];
       const path = routePath(pickup, drop);
       const km = Math.round(defaultKm(pickup, drop));
-      order = buildOrder({ pickup, drop, pallets: 4 + Math.floor(Math.random() * 12), cargo, note: '', tier, needTailLift: Math.random() < 0.3, helpers: Math.random() < 0.2 ? 1 : 0, km, distanceSource: 'estimate', path });
+      order = buildOrder({ pickup, drop, pallets: 4 + Math.floor(Math.random() * 12), cargo, note: '', tier, needTailLift: Math.random() < 0.3, helpers: Math.random() < 0.2 ? 1 : 0, classId: '17t', loadMode: 'pallet', km, distanceSource: 'estimate', path });
       order.status = 'searching';
       beginOffer();
     });
@@ -150,7 +154,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
 
   const mockSession = (input?: SignUpInput): Session =>
     role === 'driver'
-      ? { userId: 'mock-driver', email: input?.email ?? 'driver@mock', role: 'driver', name: input?.name ?? MOCK_DRIVER.name, phone: input?.phone ?? MOCK_DRIVER.phone, company: '', driverId: MOCK_DRIVER.id, driverOnline: online, driverRating: MOCK_DRIVER.rating, driverTrips: MOCK_DRIVER.trips, verification: 'verified', vehicle: { plate: input?.plate ?? MOCK_DRIVER.plate, desc: MOCK_DRIVER.truck, verification: 'verified', hasTailLift: true } }
+      ? { userId: 'mock-driver', email: input?.email ?? 'driver@mock', role: 'driver', name: input?.name ?? MOCK_DRIVER.name, phone: input?.phone ?? MOCK_DRIVER.phone, company: '', driverId: MOCK_DRIVER.id, driverOnline: online, driverRating: MOCK_DRIVER.rating, driverTrips: MOCK_DRIVER.trips, verification: 'verified', vehicle: { plate: input?.plate ?? MOCK_DRIVER.plate, desc: MOCK_DRIVER.truck, verification: 'verified', hasTailLift: true, classId: '17t' } }
       : { userId: 'mock-customer', email: input?.email ?? 'customer@mock', role: 'customer', name: input?.name ?? MOCK_CUSTOMER.contact, phone: input?.phone ?? MOCK_CUSTOMER.phone, company: input?.company ?? MOCK_CUSTOMER.company };
 
   const api: Backend = {
@@ -179,6 +183,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
       authListeners.forEach((l) => l(null));
     },
     getPricingConfig: async () => DEFAULT_PRICING,
+    getVehicleClasses: async () => DEFAULT_CLASSES,
 
     async uploadCargoPhoto(localUri: string) {
       return localUri;
@@ -286,6 +291,9 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
     async getEarnings() {
       const today = earnings.reduce((a, e) => a + e.amount, 0) + 8420;
       return { today, tripsToday: earnings.length + 3, week: [6200, 9100, 8800, 0, today, 0, 0], available: 24100, pending: today, recent: earnings.map((e) => e.item).concat(MOCK_HISTORY) };
+    },
+    async setVehicleClass(classId: string) {
+      if (session?.vehicle) session.vehicle.classId = classId;
     },
     async setVehicleTailLift(has) {
       if (session?.vehicle) session.vehicle.hasTailLift = has;

@@ -122,7 +122,7 @@ async function render() {
           <td><b>${esc(o.order_no)}</b><br><span class="muted">${esc(o.id.slice(0, 8))}</span></td><td>${pill(o.status)}</td><td>${ts(o.created_at)}</td>
           <td>${esc(o.customer_company || o.customer_name)}<br><span class="muted">${esc(o.customer_phone)}</span></td>
           <td>${esc(o.driver_name || '—')}<br><span class="muted">${esc(o.vehicle_plate || '')}</span></td>
-          <td>${esc(o.pickup_name)} → ${esc(o.dest_name)}</td><td>${o.pallets} 托 · ${esc(o.cargo_type)}${o.need_tail_lift ? '<br><span class="pill warn">需尾門</span>' : ''}${o.helpers ? `<br><span class="pill warn">搬工×${o.helpers}</span>` : ''}${o.cargo_photo_url ? `<br><a href="${esc(o.cargo_photo_url)}" target="_blank" rel="noopener">📷 貨物照片</a>` : ''}</td><td>${esc(o.truck_tier)}</td>
+          <td>${esc(o.pickup_name)} → ${esc(o.dest_name)}</td><td>${esc(o.class_id || '17t')} · ${o.load_mode === 'full' ? '整車' + (o.quantity_desc ? '（' + esc(o.quantity_desc) + '）' : '') : o.pallets + ' 托'}${o.weight_t ? ' · ' + o.weight_t + ' 噸' : ''} · ${esc(o.cargo_type)}${o.need_tail_lift ? '<br><span class="pill warn">需尾門</span>' : ''}${o.helpers ? `<br><span class="pill warn">搬工×${o.helpers}</span>` : ''}${o.cargo_photo_url ? `<br><a href="${esc(o.cargo_photo_url)}" target="_blank" rel="noopener">📷 貨物照片</a>` : ''}</td><td>${esc(o.truck_tier)}</td>
           <td>${o.estimated_km} <span class="muted">${esc(o.distance_source)}</span></td><td>${ntd(o.quoted_price)}</td><td>${ntd(o.platform_fee)}</td><td>${ntd(o.driver_amount)}</td><td>${o.rating ? '★' + o.rating : ''}</td>
           <td><button class="sm" onclick="events('${o.id}')">事件</button>${['completed', 'cancelled'].includes(o.status) ? '' : `<button class="sm danger" onclick="cancelOrder('${o.id}')">取消</button>`}</td></tr>`) +
         `<div id="events"></div>`;
@@ -138,9 +138,12 @@ async function render() {
     } else if (tab === 'vehicles') {
       const { data, error } = await sb.from('vehicles').select('*, drivers(profiles(name))').order('created_at', { ascending: false });
       if (error) throw error;
+      const CLASSES = (await sb.from('vehicle_classes').select('id,name').order('sort')).data ?? [];
       $('#main').innerHTML = `<div class="row"><b>車輛</b><button class="sm" onclick="render()">重新整理</button></div>` +
-        table(['車牌', '車型', '噸數', '可載托數', '升降尾門', '司機', '啟用', '審核', '操作'], data, (v) => `<tr>
-          <td><b>${esc(v.plate)}</b></td><td>${esc(v.make_model || v.truck_type)}</td><td>${v.capacity_tons}</td><td>${v.capacity_pallets}</td>
+        table(['車牌', '級距', '廠牌型號', '載重噸', '可載托數', '升降尾門', '司機', '啟用', '審核', '操作'], data, (v) => `<tr>
+          <td><b>${esc(v.plate)}</b></td>
+          <td><select onchange="setVehicleClass('${v.id}', this.value)">${CLASSES.map((k) => `<option value="${k.id}" ${k.id === v.class_id ? 'selected' : ''}>${esc(k.name)}</option>`).join('')}</select></td>
+          <td>${esc(v.make_model || v.truck_type)}</td><td>${v.capacity_tons}</td><td>${v.capacity_pallets}</td>
           <td>${v.has_tail_lift ? '有' : '無'} <button class="sm" onclick="setTailLift('${v.id}',${!v.has_tail_lift})">${v.has_tail_lift ? '改為無' : '改為有'}</button></td>
           <td>${esc(v.drivers?.profiles?.name)}</td>
           <td>${v.active ? '是' : '否'}</td><td>${pill(v.verification_status)}</td><td>${VERIFY('vehicles', v.id, v.verification_status)}</td></tr>`);
@@ -178,7 +181,19 @@ async function render() {
           ${f('service_radius_km', '派單半徑 km')}${f('offer_timeout_seconds', '派單回應秒數')}${f('earnings_hold_days', '收入保留天數')}
           <label>只派給已驗證司機/車輛<select name="require_verification"><option value="false" ${!c.require_verification ? 'selected' : ''}>否（測試期）</option><option value="true" ${c.require_verification ? 'selected' : ''}>是</option></select></label>
           <div style="grid-column:1/-1"><button class="sm">儲存</button></div>
-        </form>`;
+        </form>
+        <div class="row" style="margin-top:18px"><b>車型級距與費率</b><span class="muted">每個級距各自計價；起步價／每公里／每托／上限改了立刻影響新報價（舊訂單不變）</span></div>
+        <div id="classes"></div>`;
+      {
+        const { data: ks, error: ke } = await sb.from('vehicle_classes').select('*').order('sort');
+        if (ke) throw ke;
+        const cf = (k, key, step = 1, w = 80) => `<input data-cls="${k.id}" name="${key}" type="number" step="${step}" value="${k[key]}" style="width:${w}px">`;
+        $('#classes').innerHTML = table(['級距', '俗稱', '總重', '起步 NT$', '每 km', '每托', '最多托數', '載重噸', '車斗 m', '啟用', ''], ks, (k) => `<tr>
+          <td><b>${esc(k.name)}</b><br><span class="muted">${esc(k.id)}</span></td><td><input data-cls="${k.id}" name="nickname" value="${esc(k.nickname)}" style="width:110px"></td><td><input data-cls="${k.id}" name="gross_t" value="${esc(k.gross_t)}" style="width:80px"></td>
+          <td>${cf(k, 'base_fare')}</td><td>${cf(k, 'per_km', 0.5, 60)}</td><td>${cf(k, 'per_pallet')}</td><td>${cf(k, 'max_pallets', 1, 60)}</td><td>${cf(k, 'max_weight_t', 0.5, 60)}</td><td>${cf(k, 'deck_m', 0.1, 60)}</td>
+          <td><select data-cls="${k.id}" name="active"><option value="true" ${k.active ? 'selected' : ''}>是</option><option value="false" ${!k.active ? 'selected' : ''}>否</option></select></td>
+          <td><button class="sm" type="button" onclick="saveClass('${k.id}')">儲存</button></td></tr>`);
+      }
       $('#cfg').onsubmit = async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target); const patch = { updated_at: new Date().toISOString() };
@@ -194,6 +209,17 @@ async function render() {
 async function setVerify(t, id, v) {
   const { error } = await sb.from(t).update({ verification_status: v }).eq('id', id);
   msg(error ? error.message : `已更新為 ${v}`); render();
+}
+async function setVehicleClass(id, classId) {
+  const { data: k } = await sb.from('vehicle_classes').select('max_pallets,max_weight_t').eq('id', classId).single();
+  const { error } = await sb.from('vehicles').update({ class_id: classId, capacity_pallets: k?.max_pallets, capacity_tons: k?.max_weight_t }).eq('id', id);
+  msg(error ? error.message : '已更新級距'); render();
+}
+async function saveClass(id) {
+  const patch = { updated_at: new Date().toISOString() };
+  for (const el of document.querySelectorAll(`[data-cls="${id}"]`)) patch[el.name] = el.name === 'active' ? el.value === 'true' : el.type === 'number' ? Number(el.value) : el.value;
+  const { error } = await sb.from('vehicle_classes').update(patch).eq('id', id);
+  msg(error ? error.message : '已儲存 ' + id); render();
 }
 async function setTailLift(id, v) {
   const { error } = await sb.from('vehicles').update({ has_tail_lift: v }).eq('id', id);

@@ -4,7 +4,7 @@
  */
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { Backend, Unsubscribe } from './backend';
-import { CARGO_TYPES, TIERS } from './data';
+import { CARGO_TYPES, DEFAULT_CLASSES, TIERS } from './data';
 import { routePath } from './pricing';
 import { getSupabase } from './supabaseClient';
 import type {
@@ -17,6 +17,7 @@ import type {
   PricingConfig,
   Session,
   SignUpInput,
+  VehicleClass,
 } from './types';
 
 /* ---------- row types (subset of public.orders) ---------- */
@@ -42,6 +43,10 @@ type OrderRow = {
   need_tail_lift: boolean;
   helpers: number;
   cargo_photo_url?: string | null;
+  class_id?: string | null;
+  load_mode?: string | null;
+  weight_t?: number | string | null;
+  quantity_desc?: string | null;
   estimated_km: number | string;
   distance_source: 'osrm' | 'google' | 'estimate';
   route_polyline: [number, number][] | null;
@@ -82,6 +87,10 @@ export function mapOrderRow(r: OrderRow): Order {
     needTailLift: !!r.need_tail_lift,
     helpers: num(r.helpers),
     cargoPhotoUrl: r.cargo_photo_url || undefined,
+    classId: r.class_id || '17t',
+    loadMode: r.load_mode === 'full' ? 'full' : 'pallet',
+    weightT: r.weight_t == null ? undefined : num(r.weight_t),
+    quantityDesc: r.quantity_desc ?? '',
     km: num(r.estimated_km),
     distanceSource: r.distance_source,
     quote: {
@@ -129,6 +138,9 @@ function toHistory(o: Order): HistoryItem {
     from: o.pickup.name,
     to: o.drop.name,
     pallets: o.pallets,
+    loadMode: o.loadMode,
+    quantityDesc: o.quantityDesc,
+    classId: o.classId,
     cargo: o.cargo.name,
     total: o.quote.total,
     driverAmount: o.quote.driverAmount,
@@ -172,8 +184,8 @@ export function createSupabaseBackend(): Backend {
         s.driverRating = num(d.rating, 5);
         s.driverTrips = d.trips_count;
         s.verification = d.verification_status;
-        const { data: v } = await sb.from('vehicles').select('plate,make_model,truck_type,capacity_tons,verification_status,has_tail_lift').eq('driver_id', d.id).eq('active', true).order('created_at').limit(1).maybeSingle();
-        if (v) s.vehicle = { plate: v.plate, desc: `${v.make_model || v.truck_type} · ${num(v.capacity_tons)}噸`, verification: v.verification_status, hasTailLift: !!v.has_tail_lift };
+        const { data: v } = await sb.from('vehicles').select('plate,make_model,truck_type,capacity_tons,verification_status,has_tail_lift,class_id').eq('driver_id', d.id).eq('active', true).order('created_at').limit(1).maybeSingle();
+        if (v) s.vehicle = { plate: v.plate, desc: `${v.make_model || v.truck_type} · ${DEFAULT_CLASSES.find((k) => k.id === v.class_id)?.name ?? v.class_id ?? ''}`, verification: v.verification_status, hasTailLift: !!v.has_tail_lift, classId: v.class_id || '17t' };
       }
     }
     cachedSession = s;
@@ -233,6 +245,7 @@ export function createSupabaseBackend(): Backend {
             plate: input.plate ?? '',
             make_model: input.makeModel ?? '',
             has_tail_lift: !!input.hasTailLift,
+            class_id: input.classId ?? '17t',
           },
         },
       });
@@ -249,6 +262,24 @@ export function createSupabaseBackend(): Backend {
     },
 
     /* ---- config ---- */
+    async getVehicleClasses() {
+      const { data, error } = await sb.from('vehicle_classes').select('*').order('sort');
+      if (error || !data || data.length === 0) return DEFAULT_CLASSES;
+      return data.map((k): VehicleClass => ({
+        id: k.id,
+        name: k.name,
+        nickname: k.nickname ?? '',
+        sort: num(k.sort),
+        active: k.active !== false,
+        baseFare: num(k.base_fare),
+        perKm: num(k.per_km),
+        perPallet: num(k.per_pallet),
+        maxPallets: num(k.max_pallets),
+        maxWeightT: num(k.max_weight_t),
+        deckM: num(k.deck_m),
+        grossT: k.gross_t ?? '',
+      }));
+    },
     async getPricingConfig() {
       const { data, error } = await sb.from('pricing_config').select('*').eq('id', 1).single();
       if (error || !data) throw new Error(error?.message ?? 'no pricing config');
@@ -292,6 +323,10 @@ export function createSupabaseBackend(): Backend {
           need_tail_lift: input.needTailLift,
           helpers: input.helpers,
           cargo_photo_url: input.cargoPhotoUrl ?? null,
+          class_id: input.classId,
+          load_mode: input.loadMode,
+          weight_t: input.weightT ?? null,
+          quantity_desc: input.quantityDesc ?? '',
           km: input.km,
           distance_source: input.distanceSource,
           route_polyline: input.path,
@@ -397,6 +432,12 @@ export function createSupabaseBackend(): Backend {
       const { error } = await sb.from('vehicles').update({ has_tail_lift: has }).eq('driver_id', cachedDriverId).eq('active', true);
       if (error) throw new Error(error.message);
       if (cachedSession?.vehicle) cachedSession.vehicle.hasTailLift = has;
+    },
+    async setVehicleClass(classId) {
+      if (!cachedDriverId) throw new Error('not a driver');
+      const { error } = await sb.rpc('driver_set_vehicle_class', { p_class: classId });
+      if (error) throw new Error(error.message);
+      if (cachedSession?.vehicle) cachedSession.vehicle.classId = classId;
     },
 
     /* ---- push ---- */

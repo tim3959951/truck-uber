@@ -1,4 +1,4 @@
-import type { CargoType, Customer, Driver, HistoryItem, Location, Tier } from './types';
+import type { CargoType, Customer, Driver, HistoryItem, LoadMode, Location, Tier, VehicleClass } from './types';
 
 export const LOCATIONS: Location[] = [
   { id: 'ty', name: '觀音工業區', addr: '桃園市觀音區工業二路 88 號', lat: 25.0405, lng: 121.0942 },
@@ -53,3 +53,26 @@ export const MOCK_HISTORY: HistoryItem[] = [
 export const locationById = (id: string) => LOCATIONS.find((l) => l.id === id) ?? LOCATIONS[0];
 export const cargoById = (id: string) => CARGO_TYPES.find((c) => c.id === id) ?? CARGO_TYPES[0];
 export const tierById = (id: string) => TIERS.find((t) => t.id === id) ?? TIERS[0];
+
+/** Same rows as 0004 seeds; the server's `vehicle_classes` table is the source of truth. */
+export const DEFAULT_CLASSES: VehicleClass[] = [
+  { id: '11t', name: '11噸級', nickname: '六輪中型', sort: 1, active: true, baseFare: 1200, perKm: 30, perPallet: 120, maxPallets: 8, maxWeightT: 6, deckM: 6, grossT: '8.8–11噸' },
+  { id: '17t', name: '17噸級', nickname: '十輪大貨車', sort: 2, active: true, baseFare: 1500, perKm: 38, perPallet: 150, maxPallets: 12, maxWeightT: 10, deckM: 7.5, grossT: '15–17噸' },
+  { id: '26t', name: '26噸級', nickname: '三軸十二輪', sort: 3, active: true, baseFare: 2000, perKm: 48, perPallet: 150, maxPallets: 16, maxWeightT: 15, deckM: 9.6, grossT: '23–26噸' },
+  { id: '35t', name: '35噸拖板', nickname: '半聯結車／平板', sort: 4, active: true, baseFare: 2600, perKm: 60, perPallet: 150, maxPallets: 22, maxWeightT: 24, deckM: 12.2, grossT: '35噸' },
+];
+/** "8 托" or "整車 · H型鋼 12 支" — pallets are 0 in full-truck mode */
+export const loadLabel = (o: { pallets: number; loadMode?: LoadMode; quantityDesc?: string }) =>
+  o.loadMode === 'full' ? `整車${o.quantityDesc ? ' · ' + o.quantityDesc : ''}` : `${o.pallets} 托`;
+/** "17噸級" for tags; falls back to the id */
+export const className = (classes: VehicleClass[], id: string) => classes.find((c) => c.id === id)?.name ?? id;
+
+export const classById = (classes: VehicleClass[], id: string): VehicleClass =>
+  classes.find((c) => c.id === id) ?? classes.find((c) => c.id === '17t') ?? classes[0] ?? DEFAULT_CLASSES[1];
+
+/** 最小能載的級距：托數與（選填）重量都放得下；整車模式只看重量。找不到就回最大的。 */
+export function recommendClass(classes: VehicleClass[], pallets: number, weightT: number | undefined, loadMode: LoadMode): VehicleClass {
+  const list = classes.filter((c) => c.active).sort((a, b) => a.sort - b.sort);
+  const fits = list.find((c) => (loadMode === 'full' || c.maxPallets >= pallets) && (weightT == null || c.maxWeightT >= weightT));
+  return fits ?? list[list.length - 1] ?? DEFAULT_CLASSES[1];
+}

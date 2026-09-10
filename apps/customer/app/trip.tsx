@@ -2,22 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  Avatar,
-  Button,
-  H2,
-  MapView,
-  Plate,
-  Progress,
-  RouteBlock,
-  RoundButton,
-  Sheet,
-  Tag,
-  Tiny,
-  Toast,
-  colors,
-  formatNTD,
-  haversineKm, showAlert, } from '@truck/shared';
+import { Avatar, Button, H2, MapView, Plate, Progress, RoundButton, RouteBlock, Sheet, Tag, Tiny, Toast, colors, formatNTD, haversineKm, loadLabel, showAlert } from '@truck/shared';
 import { useStore } from '../store';
 
 export default function Trip() {
@@ -94,7 +79,7 @@ export default function Trip() {
             </View>
             <RouteBlock pickup={o.pickup} drop={o.drop} />
             <View style={s.tags}>
-              <Tag label={`${o.pallets} 托`} />
+              <Tag label={loadLabel(o)} />
               <Tag label={o.cargo.name} />
               <Tag label={o.tier.name} />
               <Text style={s.fare}>{formatNTD(o.quote.total)}</Text>
@@ -127,7 +112,7 @@ export default function Trip() {
             </View>
             <RouteBlock pickup={o.pickup} drop={o.drop} />
             <View style={s.tags}>
-              <Tag label={`${o.pallets} 托 · ${o.cargo.name}`} />
+              <Tag label={`${loadLabel(o)} · ${o.cargo.name}`} />
               <Tag label={o.tier.name} />
               <Text style={s.fare}>{formatNTD(o.quote.total)}</Text>
             </View>

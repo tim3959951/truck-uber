@@ -262,10 +262,75 @@ select public.cancel_order((select id from t4), 'test');
 select auth.login('22222222-2222-2222-2222-222222222222');
 select public.driver_set_online(false);
 
+-- --- vehicle classes (0004) ----------------------------------------------
+do $$ declare q jsonb; begin
+  assert (select count(*) from public.vehicle_classes where active) = 4, 'four classes seeded';
+  -- 17t default equals the legacy numbers
+  q := public.quote_price(131, 8, 'dedicated', false, 0, '17t', 'pallet');
+  assert (q->>'total')::int = (public.quote_price(131, 8, 'dedicated')->>'total')::int, '17t == legacy';
+  -- 26t pallet mode uses its own rates
+  q := public.quote_price(131, 8, 'backhaul', true, 1, '26t', 'pallet');
+  assert (q->>'total')::int = round((2000 + 131*48 + 8*150) * 0.75 / 10) * 10 + 1000 + 3000, '26t total = ' || (q->>'total');
+  -- full-truck mode charges the deck's max pallets
+  q := public.quote_price(100, 0, 'dedicated', false, 0, '35t', 'full');
+  assert (q->>'pallet_fee')::int = 22 * 150, 'full = max_pallets × per_pallet';
+  assert (q->>'distance_fee')::int = 2600 + 100*60, '35t distance fee';
+  begin
+    perform public.quote_price(10, 1, 'dedicated', false, 0, 'nope', 'pallet');
+    raise exception 'unknown class should fail';
+  exception when others then
+    if sqlerrm not like 'unknown vehicle class%' then raise; end if;
+  end;
+end $$;
+
+-- customer: too many pallets for the class is rejected; a 26t order only reaches a 26t vehicle
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ begin
+  begin
+    perform public.create_order('{"pickup":{"name":"P","lat":25.04,"lng":121.09},"dest":{"name":"D","lat":24.9,"lng":121.05},"pallets":13,"cargo_type":"培養土","tier":"dedicated","class_id":"17t"}'::jsonb);
+    raise exception 'should reject 13 pallets on 17t';
+  exception when others then
+    if sqlerrm not like '%最多 12 托%' then raise; end if;
+  end;
+  begin
+    perform public.create_order('{"pickup":{"name":"P","lat":25.04,"lng":121.09},"dest":{"name":"D","lat":24.9,"lng":121.05},"pallets":4,"weight_t":12,"cargo_type":"鋼材","tier":"dedicated","class_id":"17t"}'::jsonb);
+    raise exception 'should reject 12 t on 17t';
+  exception when others then
+    if sqlerrm not like '%載重上限%' then raise; end if;
+  end;
+end $$;
+create temp table t5 as select * from public.create_order('{"pickup":{"name":"P","lat":25.04,"lng":121.09},"dest":{"name":"D","lat":24.9,"lng":121.05},"pallets":0,"load_mode":"full","quantity_desc":"H型鋼 12 支","weight_t":13.5,"cargo_type":"鋼材 / 金屬","tier":"dedicated","class_id":"26t"}'::jsonb);
+do $$ declare o public.orders; begin
+  o := pg_temp.o((select id from t5));
+  assert o.class_id = '26t' and o.load_mode = 'full' and o.pallets = 0 and o.weight_t = 13.5 and o.quantity_desc = 'H型鋼 12 支', 'class/full stored';
+  assert (o.quote_breakdown->>'pallet_fee')::int = 16 * 150, 'full 26t pallet fee';
+end $$;
+select auth.login('22222222-2222-2222-2222-222222222222');
+select public.driver_set_online(true);
+select auth.login('11111111-1111-1111-1111-111111111111');
+select public.pay_order_sandbox((select id from t5));
+do $$ begin
+  assert (pg_temp.o((select id from t5))).status = 'searching', '17t driver must not get a 26t order';
+end $$;
+select auth.login('22222222-2222-2222-2222-222222222222');
+select public.driver_set_vehicle_class('26t');
+do $$ begin
+  assert (select class_id from public.vehicles where driver_id = public.my_driver_id() and active) = '26t', 'driver switched class';
+end $$;
+select auth.login('11111111-1111-1111-1111-111111111111');
+select public.poll_order((select id from t5));
+do $$ begin
+  assert (pg_temp.o((select id from t5))).status = 'offered', '26t vehicle now gets the 26t order';
+end $$;
+select public.cancel_order((select id from t5), 'test');
+select auth.login('22222222-2222-2222-2222-222222222222');
+select public.driver_set_vehicle_class('17t');
+select public.driver_set_online(false);
+
 -- admin sees everything and can verify a driver
 select auth.login('44444444-4444-4444-4444-444444444444');
 do $$ begin
-  assert (select count(*) from public.orders) = 5, 'admin sees all 5 orders';
+  assert (select count(*) from public.orders) = 6, 'admin sees all 6 orders';
   update public.drivers set verification_status = 'verified' where profile_id = '22222222-2222-2222-2222-222222222222';
   assert (select verification_status from public.drivers where profile_id = '22222222-2222-2222-2222-222222222222') = 'verified', 'admin verified driver';
 end $$;

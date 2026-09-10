@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import {
   Backend,
+  DEFAULT_CLASSES,
   DEFAULT_PRICING,
   DriverLocation,
   HistoryItem,
   LOCATIONS,
+  LoadMode,
   Location,
   Order,
   OrderStatus,
@@ -14,9 +16,12 @@ import {
   Session,
   SignUpInput,
   Unsubscribe,
+  VehicleClass,
   cargoById,
+  classById,
   createBackend,
   getRoute,
+  recommendClass,
   phaseProgress,
   registerForPush,
   tierById,
@@ -31,6 +36,7 @@ type State = {
   session: Session | null;
   pricing: PricingConfig;
   engine: PricingEngine;
+  classes: VehicleClass[];
   // booking draft
   pickup: Location;
   drop: Location;
@@ -39,6 +45,15 @@ type State = {
   note: string;
   /** local uri of the cargo photo taken on this device (uploaded at requestTruck) */
   cargoPhotoUri: string | null;
+  /** 棧板模式 or 整車 */
+  loadMode: LoadMode;
+  /** 客戶填的總重量（噸），選填 */
+  weightT: number | null;
+  /** 整車模式：數量描述 */
+  quantityDesc: string;
+  classId: string;
+  /** true once the customer picked a class by hand; auto-recommendation stops overriding it */
+  classPicked: boolean;
   tierId: 'dedicated' | 'backhaul';
   needTailLift: boolean;
   helpers: number;
@@ -53,6 +68,9 @@ type State = {
   busy: boolean;
 
   set: (patch: Partial<State>) => void;
+  /** update cargo fields and re-run the class recommendation unless the customer picked one */
+  setCargo: (patch: Partial<Pick<State, 'pallets' | 'weightT' | 'loadMode' | 'quantityDesc'>>) => void;
+  pickClass: (classId: string) => void;
   init: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<boolean>;
@@ -78,12 +96,18 @@ export const useStore = create<State>((set, get) => ({
   session: null,
   pricing: DEFAULT_PRICING,
   engine: new PricingEngine(DEFAULT_PRICING),
+  classes: DEFAULT_CLASSES,
   pickup: LOCATIONS[0],
   drop: LOCATIONS[2],
   pallets: 8,
   cargoId: 'soil',
   note: '',
   cargoPhotoUri: null,
+  loadMode: 'pallet',
+  weightT: null,
+  quantityDesc: '',
+  classId: '17t',
+  classPicked: false,
   tierId: 'dedicated',
   needTailLift: false,
   helpers: 0,
@@ -97,6 +121,17 @@ export const useStore = create<State>((set, get) => ({
   busy: false,
 
   set: (patch) => set(patch),
+  setCargo(patch) {
+    const next = { ...get(), ...patch };
+    const rec = recommendClass(next.classes, next.pallets, next.weightT ?? undefined, next.loadMode);
+    const cur = classById(next.classes, next.classId);
+    const curFits = (next.loadMode === 'full' || cur.maxPallets >= next.pallets) && (next.weightT == null || cur.maxWeightT >= next.weightT);
+    // keep a hand-picked class while it still fits; otherwise follow the recommendation
+    set({ ...patch, classId: next.classPicked && curFits ? next.classId : rec.id, classPicked: next.classPicked && curFits });
+  },
+  pickClass(classId) {
+    set({ classId, classPicked: true });
+  },
 
   async init() {
     const session = await backend.getSession().catch(() => null);
@@ -154,6 +189,10 @@ export const useStore = create<State>((set, get) => ({
         tier: tierById(s.tierId),
         needTailLift: s.needTailLift,
         helpers: s.helpers,
+        classId: s.classId,
+        loadMode: s.loadMode,
+        weightT: s.weightT ?? undefined,
+        quantityDesc: s.quantityDesc,
         cargoPhotoUrl,
         km: route.km,
         distanceSource: route.source,
@@ -161,7 +200,7 @@ export const useStore = create<State>((set, get) => ({
       });
       get().applyOrder(order);
       // add-ons and note are per-order; don't carry them into the next booking
-      set({ needTailLift: false, helpers: 0, note: '', cargoPhotoUri: null, route: null });
+      set({ needTailLift: false, helpers: 0, note: '', cargoPhotoUri: null, weightT: null, quantityDesc: '', loadMode: 'pallet', classPicked: false, route: null });
       return order;
     } finally {
       set({ busy: false });
@@ -304,6 +343,7 @@ function ensureWatching(o: Order) {
 async function afterLogin() {
   const s = useStore.getState();
   backend.getPricingConfig().then((pricing) => useStore.setState({ pricing, engine: new PricingEngine(pricing) })).catch(() => {});
+  backend.getVehicleClasses().then((classes) => useStore.setState({ classes })).catch(() => {});
   backend.getActiveOrder().then((o) => o && s.applyOrder(o)).catch(() => {});
   s.loadHistory().catch(() => {});
   registerForPush().then((t) => t && backend.registerPushToken(t.token, t.platform)).catch(() => {});

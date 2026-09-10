@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from './alert';
+import { DEFAULT_CLASSES } from './data';
 import { colors } from './theme';
 import type { SignUpInput } from './types';
 import { Button, H1, Tiny } from './ui';
@@ -25,6 +26,7 @@ export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind 
   const [plate, setPlate] = useState('');
   const [makeModel, setMakeModel] = useState('');
   const [hasTailLift, setHasTailLift] = useState(false);
+  const [classId, setClassId] = useState('17t');
   const [busy, setBusy] = useState(false);
 
   const isDriver = role === 'driver';
@@ -38,7 +40,7 @@ export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind 
     try {
       if (mode === 'login') await onLogin(email, password);
       else {
-        const ok = await onSignUp({ email, password, role, name, phone, company, plate, makeModel, hasTailLift });
+        const ok = await onSignUp({ email, password, role, name, phone, company, plate, makeModel, hasTailLift, classId });
         if (!ok) showAlert('請確認 Email', '我們已寄出確認信，點擊信中連結後再回來登入。');
       }
     } catch (e) {
@@ -64,7 +66,21 @@ export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind 
             {isDriver ? (
               <>
                 <Field label="車牌號碼" value={plate} onChangeText={(t) => setPlate(t.toUpperCase())} autoCapitalize="characters" placeholder="KEA-5177" />
-                <Field label="車型（選填）" value={makeModel} onChangeText={setMakeModel} placeholder="HINO 700 17噸" />
+                <View style={{ gap: 6 }}>
+                  <Text style={s.label}>車型級距（派單只派同級距的單）</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                    {DEFAULT_CLASSES.map((k) => {
+                      const on = classId === k.id;
+                      return (
+                        <Pressable key={k.id} onPress={() => setClassId(k.id)} style={[s.chip, on && s.chipOn]}>
+                          <Text style={[{ fontWeight: '800' }, on && { color: '#fff' }]}>{k.name}</Text>
+                          <Tiny style={on ? { color: '#ddd' } : undefined}>{k.nickname} · 總重 {k.grossT}</Tiny>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+                <Field label="廠牌型號（選填）" value={makeModel} onChangeText={setMakeModel} placeholder="HINO 700" />
                 <Pressable onPress={() => setHasTailLift((v) => !v)} style={s.check}>
                   <View style={[s.checkBox, hasTailLift && s.checkBoxOn]}>{hasTailLift ? <Text style={{ color: '#fff', fontWeight: '800' }}>✓</Text> : null}</View>
                   <View style={{ flex: 1 }}>
@@ -104,6 +120,8 @@ const s = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '700', color: colors.ink2, letterSpacing: 0.5 },
   input: { backgroundColor: colors.fill, borderRadius: 10, padding: 14, fontSize: 15, fontWeight: '600' },
   check: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+  chip: { width: '47%', flexGrow: 1, borderWidth: 1.5, borderColor: colors.line, borderRadius: 12, padding: 10, gap: 2 },
+  chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   checkBox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   checkBoxOn: { backgroundColor: colors.ink },
 });

@@ -15,6 +15,7 @@ import type {
   PricingConfig,
   Session,
   SignUpInput,
+  VehicleClass,
 } from './types';
 
 export type Unsubscribe = () => void;
@@ -32,6 +33,8 @@ export interface Backend {
 
   // ---- config --------------------------------------------------------------
   getPricingConfig(): Promise<PricingConfig>;
+  /** 車型級距與各自費率（後台可改）。 */
+  getVehicleClasses(): Promise<VehicleClass[]>;
 
   // ---- orders (customer) ---------------------------------------------------
   /** Creates the order in `created` (awaiting payment). Price is computed server-side. */
@@ -63,6 +66,8 @@ export interface Backend {
   getEarnings(): Promise<EarningsSummary>;
   /** Driver flags whether their active vehicle has a hydraulic tail lift. */
   setVehicleTailLift(has: boolean): Promise<void>;
+  /** driver: my vehicle belongs to this class (派單只派同級距) */
+  setVehicleClass(classId: string): Promise<void>;
 
   // ---- push ----------------------------------------------------------------
   registerPushToken(token: string, platform: string): Promise<void>;

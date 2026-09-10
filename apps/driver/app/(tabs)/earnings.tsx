@@ -3,7 +3,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { H2, Row, Tiny, colors, formatNTD } from '@truck/shared';
+import { H2, Row, Tiny, colors, formatNTD, loadLabel } from '@truck/shared';
 import { useStore } from '../../store';
 
 const DAYS = ['一', '二', '三', '四', '五', '六', '日'];
@@ -55,7 +55,7 @@ export default function Earnings() {
           <Row
             key={h.id}
             title={`${h.from} → ${h.to}`}
-            subtitle={`${h.date} · ${h.pallets} 托 ${h.cargo} · 運費 ${formatNTD(h.total)}`}
+            subtitle={`${h.date} · ${loadLabel(h)} ${h.cargo} · 運費 ${formatNTD(h.total)}`}
             icon={<Ionicons name="bus-outline" size={18} />}
             right={<Text style={{ fontWeight: '800' }}>{formatNTD(h.driverAmount)}</Text>}
           />

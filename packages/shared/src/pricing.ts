@@ -1,4 +1,4 @@
-import type { Addons, LatLng, PricingConfig, Quote, Tier } from './types';
+import type { Addons, LatLng, LoadMode, PricingConfig, Quote, Tier, VehicleClass } from './types';
 
 /** Placeholder values; the server's `pricing_config` row is the source of truth. */
 export const DEFAULT_PRICING: PricingConfig = {
@@ -38,13 +38,18 @@ export class PricingEngine {
   }
 
   /**
-   * 總運費 = round10((起步 + km×每公里 + 托數×每托) × 車種係數) + 尾門費 + 搬工人數×搬工費
-   * Add-ons are flat: a backhaul discount should not discount a helper's labour.
+   * 總運費 = round10((級距起步 + km×級距每公里 + 托數×級距每托) × 專車/回頭車係數) + 尾門費 + 搬工人數×搬工費
+   * 整車模式的托數 = 該級距的 max_pallets（付滿載價）。Add-ons are flat: a backhaul discount should not discount a helper's labour.
    */
-  quote(km: number, pallets: number, tier: Tier, addons: Addons = { needTailLift: false, helpers: 0 }): Quote {
+  quote(km: number, pallets: number, tier: Tier, addons: Addons = { needTailLift: false, helpers: 0 }, cls?: VehicleClass, loadMode: LoadMode = 'pallet'): Quote {
     const c = this.config;
-    const distanceFee = c.baseFare + Math.round(km * c.perKm);
-    const palletFee = pallets * c.perPallet;
+    // rates come from the vehicle class (0004); without one, fall back to the legacy 17t numbers in pricing_config
+    const baseFare = cls ? cls.baseFare : c.baseFare;
+    const perKm = cls ? cls.perKm : c.perKm;
+    const perPallet = cls ? cls.perPallet : c.perPallet;
+    const billedPallets = loadMode === 'full' ? (cls ? cls.maxPallets : c.maxPallets) : pallets;
+    const distanceFee = baseFare + Math.round(km * perKm);
+    const palletFee = billedPallets * perPallet;
     const subtotal = distanceFee + palletFee;
     const factor = this.multiplierFor(tier);
     const baseTotal = Math.round((subtotal * factor) / 10) * 10;
