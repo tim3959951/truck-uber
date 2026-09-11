@@ -9,3 +9,6 @@ dist/
 deploy/
 *.zip
 ._*
+dist-pages/
+dist-gh/
+site/
