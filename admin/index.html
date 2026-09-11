@@ -37,7 +37,8 @@
   <b>大車叫車 · 管理後台</b>
   <nav id="nav" style="display:none">
     <button data-tab="orders" class="on">訂單</button>
-    <button data-tab="drivers">司機</button>
+    <button data-tab="review">承運人審核</button>
+    <button data-tab="drivers">承運人</button>
     <button data-tab="vehicles">車輛</button>
     <button data-tab="operators">車行</button>
     <button data-tab="profiles">使用者</button>
@@ -126,6 +127,41 @@ async function render() {
           <td>${o.estimated_km} <span class="muted">${esc(o.distance_source)}</span></td><td>${ntd(o.quoted_price)}</td><td>${ntd(o.platform_fee)}</td><td>${ntd(o.driver_amount)}</td><td>${o.rating ? '★' + o.rating : ''}</td>
           <td><button class="sm" onclick="events('${o.id}')">事件</button>${['completed', 'cancelled'].includes(o.status) ? '' : `<button class="sm danger" onclick="cancelOrder('${o.id}')">取消</button>`}</td></tr>`) +
         `<div id="events"></div>`;
+    } else if (tab === 'review') {
+      const { data: ds, error } = await sb.from('drivers').select('*, profiles(name,phone), vehicles(plate,class_id,make_model,has_tail_lift,verification_status), carrier_documents(*)').order('submitted_at', { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      const ST = { draft: '草稿', submitted: '待審核', needs_fix: '補件中', approved: '已核可', rejected: '未通過' };
+      const BT = { own_operator: '自營貨運行', affiliated: '靠行', employee: '受僱' };
+      const DOCS = { id_front: '身分證正', id_back: '身分證反', license: '職業駕照', vehicle_reg: '行照', vehicle_front: '車頭', vehicle_bed: '車斗', business_proof: '營業證明', affiliation_proof: '靠行證明', insurance_compulsory: '強制險', insurance_liability: '第三人責任險', insurance_cargo: '貨物險', bank_passbook: '存摺' };
+      const order = { submitted: 0, needs_fix: 1, draft: 2, approved: 3, rejected: 4 };
+      ds.sort((a, b) => (order[a.onboarding_status] ?? 9) - (order[b.onboarding_status] ?? 9));
+      const signed = {};
+      await Promise.all(ds.flatMap((d) => d.carrier_documents || []).map(async (doc) => {
+        const { data } = await sb.storage.from('carrier-docs').createSignedUrl(doc.storage_path, 600);
+        if (data?.signedUrl) signed[doc.id] = data.signedUrl;
+      }));
+      $('#main').innerHTML = `<div class="row"><b>承運人資格審核</b><span class="muted">待審核 ${ds.filter((d) => d.onboarding_status === 'submitted').length} 位</span><button class="sm" onclick="render()">重新整理</button></div>` +
+        ds.map((d) => {
+          const v = (d.vehicles || [])[0];
+          const docs = d.carrier_documents || [];
+          return `<div style="border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0">
+            <div class="row"><b>${esc(d.profiles?.name)}</b> <span class="muted">${esc(d.profiles?.phone)}</span> ${pill(ST[d.onboarding_status] || d.onboarding_status)} ${pill(d.verification_status)}
+              <span style="flex:1"></span>
+              <button class="sm" onclick="reviewOnboarding('${d.id}','approved')">核可</button>
+              <button class="sm" onclick="reviewOnboarding('${d.id}','needs_fix')">退回補件</button>
+              <button class="sm danger" onclick="reviewOnboarding('${d.id}','rejected')">不通過</button></div>
+            <div class="muted" style="margin:6px 0">
+              駕照：${esc(d.license_class || '—')}（到期 ${esc(d.license_expires_on || '—')}） · 車：${esc(v?.plate || '—')} ${esc(v?.class_id || '')} ${esc(v?.make_model || '')}${v?.has_tail_lift ? ' 尾門' : ''}<br>
+              營業：${esc(BT[d.business_type] || '—')} ${esc(d.operator_name || '')} ${d.operator_tax_id ? '統編 ' + esc(d.operator_tax_id) : ''} · 區域：${esc((d.service_areas || []).join('、') || '—')} · 外部貨源：${d.accept_external_loads ? '是' : '否'}<br>
+              撥款：${esc(d.bank_code || '—')}-${esc(d.bank_account_no || '—')} ${esc(d.bank_account_name || '')} · 聲明 ${d.declaration_accepted_at ? '✓' : '✗'} 條款 ${d.terms_accepted_at ? '✓' : '✗'} · 送出 ${d.submitted_at ? ts(d.submitted_at) : '—'}${d.review_note ? ' · 備註：' + esc(d.review_note) : ''}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">${docs.map((doc) => `<div style="width:150px;font-size:12px">
+              <a href="${signed[doc.id] || '#'}" target="_blank" rel="noopener"><img src="${signed[doc.id] || ''}" style="width:150px;height:100px;object-fit:cover;border-radius:6px;background:#eee"></a>
+              <div>${esc(DOCS[doc.kind] || doc.kind)} ${pill(doc.status)}</div>
+              <div><button class="sm" onclick="reviewDoc('${doc.id}','approved')">✓</button> <button class="sm danger" onclick="reviewDoc('${doc.id}','rejected')">✗</button></div>
+              ${doc.note ? `<div class="muted">${esc(doc.note)}</div>` : ''}</div>`).join('') || '<span class="muted">尚未上傳證件</span>'}</div>
+          </div>`;
+        }).join('');
     } else if (tab === 'drivers') {
       const { data: ds, error } = await sb.from('drivers').select('*, profiles(name,phone,created_at), driver_locations(lat,lng,updated_at), operators(company_name)').order('created_at', { ascending: false });
       if (error) throw error;
@@ -206,6 +242,18 @@ async function render() {
 }
 
 /* ---------- actions ---------- */
+async function reviewOnboarding(id, decision) {
+  const note = decision === 'approved' ? '' : (prompt(decision === 'needs_fix' ? '退回原因（承運人會看到）' : '不通過原因（承運人會看到）') ?? null);
+  if (note === null && decision !== 'approved') return;
+  const { error } = await sb.rpc('review_onboarding', { p_driver: id, p_decision: decision, p_note: note || '' });
+  msg(error ? error.message : '已更新審核狀態'); render();
+}
+async function reviewDoc(id, status) {
+  const note = status === 'rejected' ? (prompt('退件原因（例：照片模糊、已過期）') ?? null) : '';
+  if (note === null) return;
+  const { error } = await sb.rpc('review_document', { p_doc: id, p_status: status, p_note: note || '' });
+  msg(error ? error.message : '已更新'); render();
+}
 async function setVerify(t, id, v) {
   const { error } = await sb.from(t).update({ verification_status: v }).eq('id', id);
   msg(error ? error.message : `已更新為 ${v}`); render();

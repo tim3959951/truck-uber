@@ -205,6 +205,43 @@ export type Session = {
   driverTrips?: number;
   verification?: 'pending' | 'verified' | 'rejected';
   vehicle?: { plate: string; desc: string; verification: 'pending' | 'verified' | 'rejected'; hasTailLift: boolean; classId: string };
+  /** 0006: carrier eligibility review state */
+  onboardingStatus?: OnboardingStatus;
+  reviewNote?: string;
+};
+
+export type OnboardingStatus = 'draft' | 'submitted' | 'needs_fix' | 'approved' | 'rejected';
+export type BusinessType = 'own_operator' | 'affiliated' | 'employee';
+export type DocKind =
+  | 'id_front' | 'id_back' | 'license' | 'vehicle_reg' | 'vehicle_front' | 'vehicle_bed'
+  | 'business_proof' | 'affiliation_proof' | 'insurance_compulsory' | 'insurance_liability' | 'insurance_cargo' | 'bank_passbook';
+
+/** Mirrors the 0006 columns on public.drivers a carrier fills in before review. */
+export type Onboarding = {
+  status: OnboardingStatus;
+  reviewNote: string;
+  submittedAt?: number;
+  licenseClass?: '大貨車' | '聯結車';
+  licenseExpiresOn?: string; // YYYY-MM-DD
+  businessType?: BusinessType;
+  operatorName: string;
+  operatorTaxId: string;
+  acceptExternalLoads: boolean;
+  serviceAreas: string[];
+  bankCode: string;
+  bankAccountNo: string;
+  bankAccountName: string;
+  declarationAcceptedAt?: number;
+  termsAcceptedAt?: number;
+};
+
+export type CarrierDoc = {
+  id: string;
+  kind: DocKind;
+  storagePath: string;
+  status: 'pending' | 'approved' | 'rejected';
+  note: string;
+  uploadedAt: number;
 };
 
 export type SignUpInput = {

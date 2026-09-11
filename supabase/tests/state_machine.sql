@@ -15,6 +15,10 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('44444444-4444-4444-4444-444444444444', 'admin@test.tw',    '{"role":"customer","name":"Admin"}');
 update public.profiles set role = 'admin' where id = '44444444-4444-4444-4444-444444444444';
 
+-- 0006: carriers must pass eligibility review before going online; approve both test drivers up front
+select auth.login('44444444-4444-4444-4444-444444444444');
+select public.review_onboarding(id, 'approved', 'test') from public.drivers;
+reset role;
 do $$ begin
   assert (select count(*) from public.profiles) = 4, 'profiles created by trigger';
   assert (select count(*) from public.drivers) = 2, 'driver rows created';
@@ -372,6 +376,68 @@ select public.cancel_order((select id from t5), 'test');
 select auth.login('22222222-2222-2222-2222-222222222222');
 select public.driver_set_vehicle_class('17t');
 select public.driver_set_online(false);
+
+-- --- carrier onboarding (0006) -----------------------------------------------
+select auth.login('33333333-3333-3333-3333-333333333333');
+do $$ declare d public.drivers; begin
+  -- reset driver 2 to draft the way a fresh signup looks (admin approved them above for the earlier tests)
+  reset role; update public.drivers set onboarding_status = 'draft', verification_status = 'pending', online = false where profile_id = '33333333-3333-3333-3333-333333333333'; set role authenticated;
+  perform auth.login('33333333-3333-3333-3333-333333333333');
+  -- cannot go online while unreviewed
+  begin
+    perform public.driver_set_online(true, 25.0, 121.0);
+    raise exception 'should not go online';
+  exception when others then
+    if sqlerrm not like '%審核通過%' then raise; end if;
+  end;
+  -- cannot self-approve
+  begin
+    update public.drivers set onboarding_status = 'approved' where profile_id = auth.uid();
+    raise exception 'self approve should fail';
+  exception when others then
+    if sqlerrm not like '%review fields%' then raise; end if;
+  end;
+  -- can fill in own application
+  update public.drivers set license_class = '大貨車', license_expires_on = current_date + 365, business_type = 'affiliated',
+         operator_name = '大同貨運行', operator_tax_id = '12345678', service_areas = array['桃園市', '新竹縣'],
+         bank_code = '812', bank_account_no = '0001234567890', bank_account_name = '林小華',
+         declaration_accepted_at = now(), terms_accepted_at = now(), terms_version = 1
+   where profile_id = auth.uid();
+  -- submit without documents → lists what is missing
+  begin
+    perform public.submit_onboarding();
+    raise exception 'should be missing docs';
+  exception when others then
+    if sqlerrm not like '缺少證件%affiliation_proof%' then raise; end if;
+  end;
+  insert into public.carrier_documents (driver_id, kind, storage_path)
+  select public.my_driver_id(), k, auth.uid() || '/' || k || '.jpg'
+  from unnest(public.required_carrier_docs('affiliated')) k;
+  d := public.submit_onboarding();
+  assert d.onboarding_status = 'submitted' and d.submitted_at is not null, 'submitted';
+end $$;
+-- other driver cannot see those documents
+select auth.login('22222222-2222-2222-2222-222222222222');
+do $$ begin
+  assert (select count(*) from public.carrier_documents where driver_id <> public.my_driver_id()) = 0, 'docs are private';
+end $$;
+-- admin reviews
+select auth.login('44444444-4444-4444-4444-444444444444');
+do $$ declare d public.drivers; n int; begin
+  select count(*) into n from public.carrier_documents; assert n >= 9, 'admin sees all docs, got ' || n;
+  d := public.review_onboarding((select id from public.drivers where profile_id = '33333333-3333-3333-3333-333333333333'), 'needs_fix', '行照模糊');
+  assert d.onboarding_status = 'needs_fix' and d.review_note = '行照模糊', 'needs_fix';
+  d := public.review_onboarding(d.id, 'approved', '');
+  assert d.onboarding_status = 'approved' and d.verification_status = 'verified', 'approved';
+  assert (select verification_status from public.vehicles where driver_id = d.id and active) = 'verified', 'vehicle verified too';
+  assert (select count(*) from public.carrier_documents where driver_id = d.id and status = 'approved') >= 9, 'docs approved';
+end $$;
+select auth.login('33333333-3333-3333-3333-333333333333');
+do $$ declare d public.drivers; begin
+  d := public.driver_set_online(true, 25.0, 121.0);
+  assert d.online, 'approved driver can go online';
+  perform public.driver_set_online(false);
+end $$;
 
 -- admin sees everything and can verify a driver
 select auth.login('44444444-4444-4444-4444-444444444444');

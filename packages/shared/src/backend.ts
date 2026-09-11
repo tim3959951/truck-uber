@@ -17,6 +17,9 @@ import type {
   SignUpInput,
   VehicleClass,
   Contract,
+  Onboarding,
+  CarrierDoc,
+  DocKind,
 } from './types';
 
 export type Unsubscribe = () => void;
@@ -74,6 +77,16 @@ export interface Backend {
   setVehicleTailLift(has: boolean): Promise<void>;
   /** driver: my vehicle belongs to this class (派單只派同級距) */
   setVehicleClass(classId: string): Promise<void>;
+
+  // ---- carrier onboarding / eligibility review (0006) ----------------------
+  getOnboarding(): Promise<Onboarding>;
+  saveOnboarding(patch: Partial<Onboarding>): Promise<Onboarding>;
+  listCarrierDocs(): Promise<CarrierDoc[]>;
+  /** uploads to the private bucket and upserts the carrier_documents row */
+  uploadCarrierDoc(kind: DocKind, localUri: string): Promise<CarrierDoc>;
+  /** short-lived signed URL for previewing one of my documents */
+  carrierDocUrl(storagePath: string): Promise<string | null>;
+  submitOnboarding(): Promise<Onboarding>;
 
   // ---- push ----------------------------------------------------------------
   registerPushToken(token: string, platform: string): Promise<void>;

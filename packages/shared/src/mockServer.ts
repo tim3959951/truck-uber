@@ -10,7 +10,7 @@
 import type { Backend, Unsubscribe } from './backend';
 import { CARGO_TYPES, DEFAULT_CLASSES, LOCATIONS, MOCK_CUSTOMER, MOCK_DRIVER, MOCK_HISTORY, TIERS, classById } from './data';
 import { bearing, DEFAULT_PRICING, defaultEngine, routePath } from './pricing';
-import type { Contract, DriverLocation, HistoryItem, Order, OrderInput, OrderStatus, Session, SignUpInput } from './types';
+import type { CarrierDoc, Contract, DocKind, DriverLocation, HistoryItem, Onboarding, Order, OrderInput, OrderStatus, Session, SignUpInput } from './types';
 
 const APPROACH_MS = 14000;
 const TRANSIT_MS = 22000;
@@ -22,6 +22,8 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
   let session: Session | null = null;
   const history: HistoryItem[] = [...MOCK_HISTORY];
   let mockContract: Contract | null = null;
+  let mockOnboarding: Onboarding = { status: 'approved', reviewNote: '', operatorName: '', operatorTaxId: '', acceptExternalLoads: true, serviceAreas: ['桃園市'], bankCode: '', bankAccountNo: '', bankAccountName: '' };
+  const mockDocs: CarrierDoc[] = [];
   const earnings: { amount: number; at: number; item: HistoryItem }[] = [];
   const orderListeners = new Map<string, Set<(o: Order) => void>>();
   const driverListeners = new Set<(o: Order) => void>();
@@ -155,7 +157,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
 
   const mockSession = (input?: SignUpInput): Session =>
     role === 'driver'
-      ? { userId: 'mock-driver', email: input?.email ?? 'driver@mock', role: 'driver', name: input?.name ?? MOCK_DRIVER.name, phone: input?.phone ?? MOCK_DRIVER.phone, company: '', driverId: MOCK_DRIVER.id, driverOnline: online, driverRating: MOCK_DRIVER.rating, driverTrips: MOCK_DRIVER.trips, verification: 'verified', vehicle: { plate: input?.plate ?? MOCK_DRIVER.plate, desc: MOCK_DRIVER.truck, verification: 'verified', hasTailLift: true, classId: '17t' } }
+      ? { userId: 'mock-driver', email: input?.email ?? 'driver@mock', role: 'driver', name: input?.name ?? MOCK_DRIVER.name, phone: input?.phone ?? MOCK_DRIVER.phone, company: '', driverId: MOCK_DRIVER.id, driverOnline: online, driverRating: MOCK_DRIVER.rating, driverTrips: MOCK_DRIVER.trips, verification: 'verified', vehicle: { plate: input?.plate ?? MOCK_DRIVER.plate, desc: MOCK_DRIVER.truck, verification: 'verified', hasTailLift: true, classId: '17t' }, onboardingStatus: 'approved', reviewNote: '' }
       : { userId: 'mock-customer', email: input?.email ?? 'customer@mock', role: 'customer', name: input?.name ?? MOCK_CUSTOMER.contact, phone: input?.phone ?? MOCK_CUSTOMER.phone, company: input?.company ?? MOCK_CUSTOMER.company };
 
   const api: Backend = {
@@ -310,6 +312,29 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
     async getEarnings() {
       const today = earnings.reduce((a, e) => a + e.amount, 0) + 8420;
       return { today, tripsToday: earnings.length + 3, week: [6200, 9100, 8800, 0, today, 0, 0], available: 24100, pending: today, recent: earnings.map((e) => e.item).concat(MOCK_HISTORY) };
+    },
+    async getOnboarding() {
+      return { ...mockOnboarding };
+    },
+    async saveOnboarding(patch: Partial<Onboarding>) {
+      mockOnboarding = { ...mockOnboarding, ...patch };
+      return { ...mockOnboarding };
+    },
+    async listCarrierDocs() {
+      return [...mockDocs];
+    },
+    async uploadCarrierDoc(kind: DocKind, localUri: string) {
+      const d: CarrierDoc = { id: 'doc-' + kind, kind, storagePath: localUri, status: 'pending', note: '', uploadedAt: Date.now() };
+      const i = mockDocs.findIndex((x) => x.kind === kind);
+      if (i >= 0) mockDocs[i] = d; else mockDocs.push(d);
+      return d;
+    },
+    async carrierDocUrl(storagePath: string) {
+      return storagePath;
+    },
+    async submitOnboarding() {
+      mockOnboarding = { ...mockOnboarding, status: 'submitted', submittedAt: Date.now() };
+      return { ...mockOnboarding };
     },
     async setVehicleClass(classId: string) {
       if (session?.vehicle) session.vehicle.classId = classId;

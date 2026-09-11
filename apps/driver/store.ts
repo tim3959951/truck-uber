@@ -37,6 +37,8 @@ type State = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<boolean>;
   signOut: () => Promise<void>;
+  /** re-read profile/driver row (e.g. after onboarding submit or admin approval) */
+  refreshSession: () => Promise<void>;
   toggleOnline: () => Promise<void>;
   accept: () => Promise<void>;
   decline: () => Promise<void>;
@@ -88,6 +90,10 @@ export const useStore = create<State>((set, get) => ({
     set({ session, online: false });
     await afterLogin();
     return true;
+  },
+  async refreshSession() {
+    const session = await backend.getSession().catch(() => null);
+    if (session) set({ session });
   },
   async signOut() {
     stopGps();

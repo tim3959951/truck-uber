@@ -106,3 +106,23 @@ export function recommendClass(classes: VehicleClass[], pallets: number, weightT
   const fits = list.find((c) => (loadMode === 'full' || c.maxPallets >= pallets) && (weightT == null || c.maxWeightT >= weightT));
   return fits ?? list[list.length - 1] ?? DEFAULT_CLASSES[1];
 }
+
+export const TW_AREAS = ['基隆市', '臺北市', '新北市', '桃園市', '新竹市', '新竹縣', '苗栗縣', '臺中市', '彰化縣', '南投縣', '雲林縣', '嘉義市', '嘉義縣', '臺南市', '高雄市', '屏東縣', '宜蘭縣', '花蓮縣', '臺東縣'];
+
+export const DOC_LABELS: Record<string, { title: string; hint: string }> = {
+  id_front: { title: '身分證正面', hint: '' },
+  id_back: { title: '身分證反面', hint: '' },
+  license: { title: '職業駕照', hint: '職業大貨車或職業聯結車駕駛執照，四角要清楚' },
+  vehicle_reg: { title: '行照', hint: '' },
+  vehicle_front: { title: '車頭照片', hint: '要看得到車牌' },
+  vehicle_bed: { title: '車斗照片', hint: '從後方拍，看得到尾門／護欄' },
+  business_proof: { title: '營業證明', hint: '貨運行登記證或公司在職證明' },
+  affiliation_proof: { title: '靠行證明', hint: '靠行合約或貨運業者開立之證明' },
+  insurance_compulsory: { title: '強制險保單', hint: '' },
+  insurance_liability: { title: '第三人責任險（選填）', hint: '有的話上傳，貨主看得到' },
+  insurance_cargo: { title: '貨物運送險（選填）', hint: '' },
+  bank_passbook: { title: '存摺封面', hint: '撥款帳戶，戶名要與本人或所屬業者一致' },
+};
+
+export const CARRIER_DECLARATION =
+  '我確認本人／所屬業者具備執行本平台所刊載運送服務之合法資格，且本人已取得必要之授權，不違反與車輛所有人、靠行業者或其他相關業者間之契約；本人所提供之文件均為真實；我了解平台僅提供媒合、估價、付款工具與運送追蹤，運送契約由本人／所屬業者與託運人直接成立，平台不負運送責任。';

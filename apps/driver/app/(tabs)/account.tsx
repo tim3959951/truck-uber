@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, Button, DEFAULT_CLASSES, H1, Row, Tag, Tiny, colors, showAlert } from '@truck/shared';
@@ -7,8 +8,10 @@ const V = { pending: '待審核', verified: '已驗證', rejected: '未通過' }
 
 export default function Account() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { session, signOut, setTailLift, setVehicleClass } = useStore();
   const rows: [string, string][] = [
+    ['資格審核', session?.onboardingStatus === 'approved' ? '已核可' : session?.onboardingStatus ?? '—'],
     ['車輛', session?.vehicle?.desc ?? '未設定'],
     ['車牌', session?.vehicle?.plate ?? '未設定'],
     ['手機', session?.phone ?? ''],
@@ -60,6 +63,7 @@ export default function Account() {
           <Row key={t} title={t} subtitle={sub} />
         ))}
       </View>
+      <Button title="查看資格申請資料" variant="secondary" onPress={() => router.push('/onboarding')} />
       <Button
         title="登出"
         variant="secondary"

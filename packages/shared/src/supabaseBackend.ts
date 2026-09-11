@@ -19,6 +19,9 @@ import type {
   SignUpInput,
   VehicleClass,
   Contract,
+  Onboarding,
+  CarrierDoc,
+  DocKind,
 } from './types';
 
 /* ---------- row types (subset of public.orders) ---------- */
@@ -130,6 +133,29 @@ export function mapOrderRow(r: OrderRow): Order {
   };
 }
 
+function mapOnboarding(d: any): Onboarding {
+  return {
+    status: d.onboarding_status ?? 'draft',
+    reviewNote: d.review_note ?? '',
+    submittedAt: d.submitted_at ? Date.parse(d.submitted_at) : undefined,
+    licenseClass: d.license_class ?? undefined,
+    licenseExpiresOn: d.license_expires_on ?? undefined,
+    businessType: d.business_type ?? undefined,
+    operatorName: d.operator_name ?? '',
+    operatorTaxId: d.operator_tax_id ?? '',
+    acceptExternalLoads: d.accept_external_loads !== false,
+    serviceAreas: d.service_areas ?? [],
+    bankCode: d.bank_code ?? '',
+    bankAccountNo: d.bank_account_no ?? '',
+    bankAccountName: d.bank_account_name ?? '',
+    declarationAcceptedAt: d.declaration_accepted_at ? Date.parse(d.declaration_accepted_at) : undefined,
+    termsAcceptedAt: d.terms_accepted_at ? Date.parse(d.terms_accepted_at) : undefined,
+  };
+}
+function mapDoc(r: any): CarrierDoc {
+  return { id: r.id, kind: r.kind as DocKind, storagePath: r.storage_path, status: r.status, note: r.note ?? '', uploadedAt: Date.parse(r.uploaded_at) };
+}
+
 function mapContract(r: any): Contract {
   return {
     id: r.id,
@@ -197,13 +223,15 @@ export function createSupabaseBackend(): Backend {
   async function finishSession(userId: string, email: string, p: { role: Session['role']; name: string; phone: string; company: string }): Promise<Session> {
     const s: Session = { userId, email, role: p.role, name: p.name, phone: p.phone, company: p.company };
     if (p.role === 'driver') {
-      const { data: d } = await sb.from('drivers').select('id,online,rating,trips_count,verification_status').eq('profile_id', userId).maybeSingle();
+      const { data: d } = await sb.from('drivers').select('id,online,rating,trips_count,verification_status,onboarding_status,review_note').eq('profile_id', userId).maybeSingle();
       if (d) {
         s.driverId = d.id;
         s.driverOnline = d.online;
         s.driverRating = num(d.rating, 5);
         s.driverTrips = d.trips_count;
         s.verification = d.verification_status;
+        s.onboardingStatus = (d.onboarding_status as Session['onboardingStatus']) ?? 'draft';
+        s.reviewNote = d.review_note ?? '';
         const { data: v } = await sb.from('vehicles').select('plate,make_model,truck_type,capacity_tons,verification_status,has_tail_lift,class_id').eq('driver_id', d.id).eq('active', true).order('created_at').limit(1).maybeSingle();
         if (v) s.vehicle = { plate: v.plate, desc: `${v.make_model || v.truck_type} · ${DEFAULT_CLASSES.find((k) => k.id === v.class_id)?.name ?? v.class_id ?? ''}`, verification: v.verification_status, hasTailLift: !!v.has_tail_lift, classId: v.class_id || '17t' };
       }
@@ -463,6 +491,72 @@ export function createSupabaseBackend(): Backend {
       const { error } = await sb.from('vehicles').update({ has_tail_lift: has }).eq('driver_id', cachedDriverId).eq('active', true);
       if (error) throw new Error(error.message);
       if (cachedSession?.vehicle) cachedSession.vehicle.hasTailLift = has;
+    },
+    /* ---- carrier onboarding ---- */
+    async getOnboarding() {
+      const s = cachedSession ?? (await buildSession());
+      if (!s?.driverId) throw new Error('not a driver');
+      const { data, error } = await sb.from('drivers').select('*').eq('id', s.driverId).single();
+      if (error || !data) throw new Error(error?.message ?? 'no driver row');
+      return mapOnboarding(data);
+    },
+    async saveOnboarding(patch) {
+      const s = cachedSession ?? (await buildSession());
+      if (!s?.driverId) throw new Error('not a driver');
+      const row: Record<string, unknown> = {};
+      if (patch.licenseClass !== undefined) row.license_class = patch.licenseClass ?? null;
+      if (patch.licenseExpiresOn !== undefined) row.license_expires_on = patch.licenseExpiresOn || null;
+      if (patch.businessType !== undefined) row.business_type = patch.businessType ?? null;
+      if (patch.operatorName !== undefined) row.operator_name = patch.operatorName;
+      if (patch.operatorTaxId !== undefined) row.operator_tax_id = patch.operatorTaxId;
+      if (patch.acceptExternalLoads !== undefined) row.accept_external_loads = patch.acceptExternalLoads;
+      if (patch.serviceAreas !== undefined) row.service_areas = patch.serviceAreas;
+      if (patch.bankCode !== undefined) row.bank_code = patch.bankCode;
+      if (patch.bankAccountNo !== undefined) row.bank_account_no = patch.bankAccountNo;
+      if (patch.bankAccountName !== undefined) row.bank_account_name = patch.bankAccountName;
+      if (patch.declarationAcceptedAt !== undefined) row.declaration_accepted_at = patch.declarationAcceptedAt ? new Date(patch.declarationAcceptedAt).toISOString() : null;
+      if (patch.termsAcceptedAt !== undefined) {
+        row.terms_accepted_at = patch.termsAcceptedAt ? new Date(patch.termsAcceptedAt).toISOString() : null;
+        row.terms_version = 1;
+      }
+      const { data, error } = await sb.from('drivers').update(row).eq('id', s.driverId).select('*').single();
+      if (error || !data) throw new Error(error?.message ?? 'save failed');
+      return mapOnboarding(data);
+    },
+    async listCarrierDocs() {
+      const s = cachedSession ?? (await buildSession());
+      if (!s?.driverId) return [];
+      const { data } = await sb.from('carrier_documents').select('*').eq('driver_id', s.driverId).order('uploaded_at');
+      return ((data ?? []) as any[]).map(mapDoc);
+    },
+    async uploadCarrierDoc(kind, localUri) {
+      const s = cachedSession ?? (await buildSession());
+      if (!s?.driverId) throw new Error('not a driver');
+      const res = await fetch(localUri);
+      const blob = await res.blob();
+      const type = blob.type && (blob.type.startsWith('image/') || blob.type === 'application/pdf') ? blob.type : 'image/jpeg';
+      const ext = type === 'application/pdf' ? 'pdf' : type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+      const path = `${s.userId}/${kind}-${Date.now()}.${ext}`;
+      const up = await sb.storage.from('carrier-docs').upload(path, blob, { contentType: type, upsert: false });
+      if (up.error) throw new Error(up.error.message);
+      const { data, error } = await sb
+        .from('carrier_documents')
+        .upsert({ driver_id: s.driverId, kind, storage_path: path, status: 'pending', note: '', uploaded_at: new Date().toISOString(), reviewed_at: null }, { onConflict: 'driver_id,kind' })
+        .select('*')
+        .single();
+      if (error || !data) throw new Error(error?.message ?? 'save failed');
+      return mapDoc(data);
+    },
+    async carrierDocUrl(storagePath) {
+      const { data } = await sb.storage.from('carrier-docs').createSignedUrl(storagePath, 600);
+      return data?.signedUrl ?? null;
+    },
+    async submitOnboarding() {
+      const { data, error } = await sb.rpc('submit_onboarding');
+      if (error) throw new Error(error.message);
+      const ob = mapOnboarding(data);
+      if (cachedSession) cachedSession.onboardingStatus = ob.status;
+      return ob;
     },
     async setVehicleClass(classId) {
       if (!cachedDriverId) throw new Error('not a driver');
