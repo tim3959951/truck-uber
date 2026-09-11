@@ -132,7 +132,7 @@ async function render() {
       if (error) throw error;
       const ST = { draft: '草稿', submitted: '待審核', needs_fix: '補件中', approved: '已核可', rejected: '未通過' };
       const BT = { own_operator: '自營貨運行', affiliated: '靠行', employee: '受僱' };
-      const DOCS = { id_front: '身分證正', id_back: '身分證反', license: '職業駕照', vehicle_reg: '行照', vehicle_front: '車頭', vehicle_bed: '車斗', business_proof: '營業證明', affiliation_proof: '靠行證明', insurance_compulsory: '強制險', insurance_liability: '第三人責任險', insurance_cargo: '貨物險', bank_passbook: '存摺' };
+      const DOCS = { id_front: '身分證正', id_back: '身分證反', license: '職業駕照正', license_back: '職業駕照反', vehicle_reg: '行照', vehicle_front: '車頭', vehicle_bed: '車斗', business_proof: '營業證明', affiliation_proof: '靠行證明', insurance_compulsory: '強制險', insurance_liability: '第三人責任險', insurance_cargo: '貨物險', bank_passbook: '存摺' };
       const order = { submitted: 0, needs_fix: 1, draft: 2, approved: 3, rejected: 4 };
       ds.sort((a, b) => (order[a.onboarding_status] ?? 9) - (order[b.onboarding_status] ?? 9));
       const signed = {};

@@ -213,7 +213,7 @@ export type Session = {
 export type OnboardingStatus = 'draft' | 'submitted' | 'needs_fix' | 'approved' | 'rejected';
 export type BusinessType = 'own_operator' | 'affiliated' | 'employee';
 export type DocKind =
-  | 'id_front' | 'id_back' | 'license' | 'vehicle_reg' | 'vehicle_front' | 'vehicle_bed'
+  | 'id_front' | 'id_back' | 'license' | 'license_back' | 'vehicle_reg' | 'vehicle_front' | 'vehicle_bed'
   | 'business_proof' | 'affiliation_proof' | 'insurance_compulsory' | 'insurance_liability' | 'insurance_cargo' | 'bank_passbook';
 
 /** Mirrors the 0006 columns on public.drivers a carrier fills in before review. */

@@ -8,7 +8,7 @@ const FALLBACK_CENTER = { lat: 25.09, lng: 121.14 };
 
 export default function DriverHome() {
   const insets = useSafeAreaInsets();
-  const { session, online, order: o, offerLeft, lastLoc, locationDenied, toast, earnings, busy, toggleOnline, accept, decline, advance } = useStore();
+  const { session, online, order: o, offerLeft, offerTotal, lastLoc, locationDenied, toast, earnings, busy, toggleOnline, accept, decline, advance } = useStore();
 
   const offered = o?.status === 'offered';
   const active = !!o && ['accepted', 'arrived', 'in_transit', 'delivered', 'completed'].includes(o.status);
@@ -50,7 +50,7 @@ export default function DriverHome() {
               <Tag label={o.tier.name} tone="go" />
               <Tiny>{offerLeft} 秒</Tiny>
             </View>
-            <Progress value={offerLeft / 15} />
+            <Progress value={offerLeft / Math.max(offerTotal, 1)} />
             <Text style={s.fare}>
               {formatNTD(o.quote.driverAmount)} <Text style={s.fareSub}>司機實收（運費 {formatNTD(o.quote.total)}）</Text>
             </Text>

@@ -53,6 +53,8 @@ export interface Backend {
   rateOrder(orderId: string, stars: number, tags: string[], comment?: string): Promise<Order>;
 
   // ---- contract (formed automatically when a driver accepts) ---------------
+  /** latest contract terms template (what a new contract will use) */
+  getContractTerms(): Promise<{ version: number; title: string; body: string }>;
   getContract(orderId: string): Promise<Contract | null>;
   /** current user (customer or carrier driver) marks the contract as read */
   ackContract(contractId: string): Promise<Contract>;

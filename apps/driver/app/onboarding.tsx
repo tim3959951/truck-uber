@@ -142,7 +142,7 @@ export default function OnboardingScreen() {
   );
 
   const statusBanner = () => {
-    if (ob.status === 'approved') return <View style={[s.banner, { backgroundColor: colors.goSoft }]}><Text style={{ fontWeight: '800', color: colors.goInk }}>資格已核可，可以上線接單。</Text></View>;
+    if (ob.status === 'approved') return <View style={[s.banner, { backgroundColor: colors.goSoft }]}><Text style={{ fontWeight: '800', color: colors.goInk }}>資格已核可，可以上線接單。</Text><Tiny>車輛級距、撥款帳戶、駕照與營業資格已鎖定；要變更請聯絡客服，由平台審核後修改。</Tiny></View>;
     if (ob.status === 'submitted') return <View style={[s.banner, { backgroundColor: colors.fill }]}><Text style={{ fontWeight: '800' }}>審核中</Text><Tiny>平台正在核對你的證件，通過會通知你。送出後資料鎖定，如需修改請聯絡平台。</Tiny></View>;
     if (ob.status === 'needs_fix') return <View style={[s.banner, { backgroundColor: colors.warnSoft }]}><Text style={{ fontWeight: '800', color: '#7a4b00' }}>需要補件</Text><Tiny>{ob.reviewNote || '請依審核備註補齊後重新送出。'}</Tiny></View>;
     if (ob.status === 'rejected') return <View style={[s.banner, { backgroundColor: '#fde8e8' }]}><Text style={{ fontWeight: '800', color: '#a33' }}>未通過</Text><Tiny>{ob.reviewNote || '不符合平台承運資格。'}</Tiny></View>;
@@ -165,13 +165,14 @@ export default function OnboardingScreen() {
         <Chips options={[{ id: '大貨車', label: '職業大貨車' }, { id: '聯結車', label: '職業聯結車' }]} value={ob.licenseClass} onPick={(v) => patch({ licenseClass: v as Onboarding['licenseClass'] })} />
         <Field label="駕照到期日（西元 年-月-日）" value={ob.licenseExpiresOn ?? ''} onChange={(t) => patch({ licenseExpiresOn: t.replace(/[^0-9-]/g, '') })} placeholder="2029-05-31" />
         <Doc kind="license" />
+        <Doc kind="license_back" />
 
         <H2>3. 身分證</H2>
         <Doc kind="id_front" />
         <Doc kind="id_back" />
 
         <H2>4. 車籍</H2>
-        <Tiny>車牌 {session?.vehicle?.plate ?? '—'} · 級距 {DEFAULT_CLASSES.find((k) => k.id === session?.vehicle?.classId)?.name ?? '—'}（級距可在「帳戶」修改）</Tiny>
+        <Tiny>車牌 {session?.vehicle?.plate ?? '—'} · 級距 {DEFAULT_CLASSES.find((k) => k.id === session?.vehicle?.classId)?.name ?? '—'}{locked ? '（已鎖定）' : '（送審前可在「帳戶」修改級距）'}</Tiny>
         <Doc kind="vehicle_reg" />
         <Doc kind="vehicle_front" />
         <Doc kind="vehicle_bed" />
@@ -221,8 +222,12 @@ export default function OnboardingScreen() {
         </Pressable>
         <Pressable disabled={locked} onPress={() => patch({ termsAcceptedAt: ob.termsAcceptedAt ? undefined : Date.now() })} style={s.check}>
           <Ionicons name={ob.termsAcceptedAt ? 'checkbox' : 'square-outline'} size={24} color={colors.ink} />
-          <Text style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>我已閱讀並同意平台服務條款與運送契約條款範本（v1）。</Text>
+          <Text style={{ flex: 1, fontSize: 13, lineHeight: 20 }}>我已閱讀並同意平台服務條款與貨物運送契約條款範本。</Text>
         </Pressable>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Button title="閱讀平台服務條款" variant="secondary" small style={{ flex: 1 }} onPress={() => router.push('/terms?kind=platform')} />
+          <Button title="閱讀運送契約條款" variant="secondary" small style={{ flex: 1 }} onPress={() => router.push('/terms?kind=contract')} />
+        </View>
 
         <Button title="登出" variant="secondary" small onPress={() => signOut()} />
       </ScrollView>

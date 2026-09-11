@@ -26,6 +26,8 @@ type State = {
   online: boolean;
   order: Order | null;
   offerLeft: number;
+  /** seconds the current offer started with (for the progress bar) */
+  offerTotal: number;
   lastLoc: DriverLocation | null;
   locationDenied: boolean;
   toast: string | null;
@@ -63,6 +65,7 @@ export const useStore = create<State>((set, get) => ({
   online: false,
   order: null,
   offerLeft: 0,
+  offerTotal: 30,
   lastLoc: null,
   locationDenied: false,
   toast: null,
@@ -120,6 +123,8 @@ export const useStore = create<State>((set, get) => ({
         set({ online: true, lastLoc: loc, locationDenied: false });
         await startGps();
         startPolling();
+        // going online can dispatch a queued order immediately — read it now instead of waiting for Realtime/polling
+        backend.getActiveOrder().then((o) => o && get().applyOrder(o)).catch(() => {});
       } else {
         stopGps();
         stopPolling();
@@ -220,7 +225,9 @@ export const useStore = create<State>((set, get) => ({
       if (prev && prev.id === o.id) set({ order: null, offerLeft: 0 });
       return;
     }
-    set({ order: o, offerLeft: isOffer && o.offerExpiresAt ? Math.max(0, Math.round((o.offerExpiresAt - Date.now()) / 1000)) : 0 });
+    const left = isOffer && o.offerExpiresAt ? Math.max(0, Math.round((o.offerExpiresAt - Date.now()) / 1000)) : 0;
+    const isNewOffer = isOffer && (!prev || prev.id !== o.id || prev.status !== 'offered');
+    set({ order: o, offerLeft: left, offerTotal: isNewOffer ? Math.max(left, 5) : get().offerTotal });
   },
 }));
 

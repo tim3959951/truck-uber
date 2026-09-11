@@ -387,6 +387,12 @@ export function createSupabaseBackend(): Backend {
     rateOrder: (orderId, stars, tags, comment) => rpcOrder('rate_order', { p_order: orderId, p_stars: stars, p_tags: tags, p_comment: comment ?? '' }),
 
     /* ---- contract ---- */
+    async getContractTerms() {
+      const { data, error } = await sb.rpc('latest_contract_terms');
+      if (error || !data) throw new Error(error?.message ?? 'no terms');
+      const r = Array.isArray(data) ? data[0] : data;
+      return { version: num(r.version, 1), title: r.title ?? '貨物運送契約', body: r.body ?? '' };
+    },
     async getContract(orderId) {
       const { data } = await sb.from('contracts').select('*').eq('order_id', orderId).maybeSingle();
       return data ? mapContract(data) : null;

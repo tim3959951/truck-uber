@@ -112,7 +112,8 @@ export const TW_AREAS = ['基隆市', '臺北市', '新北市', '桃園市', '�
 export const DOC_LABELS: Record<string, { title: string; hint: string }> = {
   id_front: { title: '身分證正面', hint: '' },
   id_back: { title: '身分證反面', hint: '' },
-  license: { title: '職業駕照', hint: '職業大貨車或職業聯結車駕駛執照，四角要清楚' },
+  license: { title: '職業駕照（正面）', hint: '職業大貨車或職業聯結車駕駛執照，四角要清楚' },
+  license_back: { title: '職業駕照（反面）', hint: '反面有審驗紀錄，要看得到最近一次審驗' },
   vehicle_reg: { title: '行照', hint: '' },
   vehicle_front: { title: '車頭照片', hint: '要看得到車牌' },
   vehicle_bed: { title: '車斗照片', hint: '從後方拍，看得到尾門／護欄' },

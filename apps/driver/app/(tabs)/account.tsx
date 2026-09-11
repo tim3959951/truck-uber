@@ -34,7 +34,10 @@ export default function Account() {
       </View>
       <View style={{ gap: 8 }}>
         <Text style={{ fontWeight: '700', fontSize: 15 }}>我的車型級距</Text>
-        <Tiny>只會收到同級距的媒合通知；改了立刻生效。</Tiny>
+        <Tiny>{session?.onboardingStatus === 'submitted' || session?.onboardingStatus === 'approved' ? '送審後級距由平台審核變更；要改請聯絡客服。' : '只會收到同級距的媒合通知；送審前可自行修改。'}</Tiny>
+        {session?.onboardingStatus === 'submitted' || session?.onboardingStatus === 'approved' ? (
+          <Tag label={DEFAULT_CLASSES.find((k) => k.id === session?.vehicle?.classId)?.name ?? session?.vehicle?.classId ?? '—'} />
+        ) : (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {DEFAULT_CLASSES.map((k) => {
             const on = session?.vehicle?.classId === k.id;
@@ -46,6 +49,7 @@ export default function Account() {
             );
           })}
         </View>
+        )}
       </View>
       <View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.line }}>
@@ -64,6 +68,10 @@ export default function Account() {
         ))}
       </View>
       <Button title="查看資格申請資料" variant="secondary" onPress={() => router.push('/onboarding')} />
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Button title="平台服務條款" variant="secondary" small style={{ flex: 1 }} onPress={() => router.push('/terms?kind=platform')} />
+        <Button title="運送契約條款" variant="secondary" small style={{ flex: 1 }} onPress={() => router.push('/terms?kind=contract')} />
+      </View>
       <Button
         title="登出"
         variant="secondary"

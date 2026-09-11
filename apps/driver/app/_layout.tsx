@@ -22,7 +22,7 @@ export default function RootLayout() {
     if (!session && !inAuth) router.replace('/(auth)/login');
     if (session && inAuth) router.replace('/');
     // carriers must pass eligibility review before they see the dispatch screen
-    if (session && !inAuth && session.role === 'driver' && (session.onboardingStatus ?? 'draft') !== 'approved' && segments[0] !== 'onboarding') router.replace('/onboarding');
+    if (session && !inAuth && session.role === 'driver' && (session.onboardingStatus ?? 'draft') !== 'approved' && segments[0] !== 'onboarding' && segments[0] !== 'terms') router.replace('/onboarding');
   }, [authReady, session, segments[0]]);
 
   if (!authReady) {
@@ -46,6 +46,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="contract" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="terms" />
       </Stack>
     </>
   );

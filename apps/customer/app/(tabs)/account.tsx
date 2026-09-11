@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, Button, H1, Row, Tiny, showAlert } from '@truck/shared';
@@ -5,6 +6,7 @@ import { backend, useStore } from '../../store';
 
 export default function Account() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { session, signOut } = useStore();
   const rows: [string, string][] = [
     ['聯絡人', `${session?.name ?? ''} ${session?.phone ?? ''}`],
@@ -25,6 +27,10 @@ export default function Account() {
         {rows.map(([t, sub]) => (
           <Row key={t} title={t} subtitle={sub} />
         ))}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Button title="平台服務條款" variant="secondary" small style={{ flex: 1 }} onPress={() => router.push('/terms?kind=platform')} />
+        <Button title="運送契約條款" variant="secondary" small style={{ flex: 1 }} onPress={() => router.push('/terms?kind=contract')} />
       </View>
       <Button
         title="登出"

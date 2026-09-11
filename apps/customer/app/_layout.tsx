@@ -31,7 +31,7 @@ export default function RootLayout() {
     }
     const screen = segments[0];
     // while an order is live the customer stays on its screen (checkout → trip → receipt); the contract page is always allowed
-    if (screen === 'contract') return;
+    if (screen === 'contract' || screen === 'terms') return;
     if (status === 'created' && screen !== 'checkout') router.replace('/checkout');
     else if (status && ['searching', 'offered', 'accepted', 'arrived', 'in_transit', 'delivered'].includes(status) && screen !== 'trip') router.replace('/trip');
     else if (status === 'completed' && screen !== 'receipt') router.replace('/receipt');
@@ -63,6 +63,7 @@ export default function RootLayout() {
         <Stack.Screen name="trip" options={{ gestureEnabled: false }} />
         <Stack.Screen name="receipt" options={{ gestureEnabled: false }} />
         <Stack.Screen name="contract" />
+        <Stack.Screen name="terms" />
       </Stack>
     </>
   );

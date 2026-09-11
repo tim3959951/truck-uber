@@ -16,3 +16,5 @@ export * from './MapView';
 export * from './alert';
 export * from './AuthForm';
 export * from './ContractView';
+export * from './platformTerms';
+export * from './TermsView';

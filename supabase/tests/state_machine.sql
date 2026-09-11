@@ -116,7 +116,8 @@ do $$ declare o public.orders; begin
   assert o.status = 'offered', 'poll re-dispatched, got ' || o.status;
 end $$;
 
--- simulate expiry (as superuser), customer polls -> driver2 excluded -> searching, nobody left
+-- simulate expiry (as superuser). 0010: a timeout is NOT a decline — driver2 goes to expired_driver_ids and,
+-- since nobody else is eligible, gets a second-round offer straight away (expired list cleared for him).
 reset role;
 update public.orders set offer_expires_at = now() - interval '1 second' where id = (select id from t);
 set role authenticated;
@@ -124,14 +125,16 @@ select auth.login('11111111-1111-1111-1111-111111111111');
 select public.poll_order((select id from t));
 do $$ declare o public.orders; begin
   o := pg_temp.o((select id from t));
-  assert o.status = 'searching', 'expired -> searching, got ' || o.status;
-  assert array_length(o.declined_driver_ids, 1) = 2, 'both drivers excluded';
+  assert o.status = 'offered', 'expired -> second chance offer, got ' || o.status;
+  assert array_length(o.declined_driver_ids, 1) = 1, 'only the explicit decline is permanent';
+  assert coalesce(array_length(o.expired_driver_ids, 1), 0) = 0, 'expired list cleared on re-offer';
   assert (select count(*) from public.order_events where order_id = o.id and event_type = 'offer_expired') = 1, 'offer_expired logged';
+  assert (select count(*) from public.order_events where order_id = o.id and event_type = 'offered' and metadata->>'round' = '2') = 1, 'second-round offer logged';
 end $$;
 
 -- give driver 1 another chance (admin clears the exclusion list), driver 1 accepts
 reset role;
-update public.orders set declined_driver_ids = '{}' where id = (select id from t);
+update public.orders set declined_driver_ids = '{}', expired_driver_ids = '{}' where id = (select id from t);
 set role authenticated;
 select auth.login('33333333-3333-3333-3333-333333333333');
 select public.driver_set_online(false);   -- driver 2 leaves
@@ -229,7 +232,7 @@ do $$ declare o public.orders; e public.driver_earnings; earn jsonb; begin
   assert e.available_at > now() + interval '6 days', 'hold period applied';
   assert (select trips_count from public.drivers where id = public.my_driver_id()) = 1, 'trips_count incremented';
   assert (select string_agg(event_type::text, ',' order by id) from public.order_events where order_id = o.id)
-         = 'created,paid,offered,declined,offered,offer_expired,offered,accepted,driver_arrived,loading_completed,in_transit,destination_arrived,delivered,completed',
+         = 'created,paid,offered,declined,offered,offer_expired,offered,offered,accepted,driver_arrived,loading_completed,in_transit,destination_arrived,delivered,completed',
          'event log: ' || (select string_agg(event_type::text, ',' order by id) from public.order_events where order_id = o.id);
   earn := public.my_earnings();
   assert (earn->>'today')::int = e.driver_amount, 'my_earnings today = ledger';
@@ -287,6 +290,10 @@ do $$ begin
     if sqlerrm not like 'not your order%' then raise; end if;
   end;
 end $$;
+
+-- 0010: t3 would be re-offered to driver 1 (second chance) the moment they come back online; cancel it first
+select auth.login('11111111-1111-1111-1111-111111111111');
+select public.cancel_order((select id from t3), 'test');
 
 -- tail-lift order: driver 1's vehicle has no tail lift -> not offered; after flagging it -> offered
 select auth.login('22222222-2222-2222-2222-222222222222');
@@ -363,9 +370,27 @@ do $$ begin
   assert (pg_temp.o((select id from t5))).status = 'searching', '17t driver must not get a 26t order';
 end $$;
 select auth.login('22222222-2222-2222-2222-222222222222');
-select public.driver_set_vehicle_class('26t');
 do $$ begin
-  assert (select class_id from public.vehicles where driver_id = public.my_driver_id() and active) = '26t', 'driver switched class';
+  -- 0010: an approved carrier cannot change their own class (or plate); the platform does it after review
+  begin
+    perform public.driver_set_vehicle_class('26t');
+    raise exception 'approved driver must not switch class';
+  exception when others then
+    if sqlerrm not like '%由平台審核變更%' then raise; end if;
+  end;
+  begin
+    update public.vehicles set class_id = '26t' where driver_id = public.my_driver_id();
+    raise exception 'direct vehicle edit must fail';
+  exception when others then
+    if sqlerrm not like '%由平台審核變更%' then raise; end if;
+  end;
+end $$;
+select auth.login('44444444-4444-4444-4444-444444444444');
+update public.vehicles v set class_id = '26t', capacity_pallets = 16, capacity_tons = 15
+  from public.drivers d where v.driver_id = d.id and d.profile_id = '22222222-2222-2222-2222-222222222222';
+select auth.login('22222222-2222-2222-2222-222222222222');
+do $$ begin
+  assert (select class_id from public.vehicles where driver_id = public.my_driver_id() and active) = '26t', 'admin switched class';
 end $$;
 select auth.login('11111111-1111-1111-1111-111111111111');
 select public.poll_order((select id from t5));
@@ -373,8 +398,10 @@ do $$ begin
   assert (pg_temp.o((select id from t5))).status = 'offered', '26t vehicle now gets the 26t order';
 end $$;
 select public.cancel_order((select id from t5), 'test');
+select auth.login('44444444-4444-4444-4444-444444444444');
+update public.vehicles v set class_id = '17t', capacity_pallets = 12, capacity_tons = 10
+  from public.drivers d where v.driver_id = d.id and d.profile_id = '22222222-2222-2222-2222-222222222222';
 select auth.login('22222222-2222-2222-2222-222222222222');
-select public.driver_set_vehicle_class('17t');
 select public.driver_set_online(false);
 
 -- --- carrier onboarding (0006) -----------------------------------------------

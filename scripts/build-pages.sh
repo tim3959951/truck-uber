@@ -5,6 +5,7 @@ set -euo pipefail
 REPO_NAME=${REPO_NAME:-truck-uber}
 BASE=/$REPO_NAME
 cd "$(dirname "$0")/.."
+node scripts/sync-terms.js
 rm -rf site && mkdir -p site
 for app in customer driver; do
   pushd apps/$app >/dev/null

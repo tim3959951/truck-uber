@@ -191,6 +191,9 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
     async uploadCargoPhoto(localUri: string) {
       return localUri;
     },
+    async getContractTerms() {
+      return { version: 2, title: '貨物運送契約（電子契約）', body: '（離線示範）正式版條款由伺服器提供。' };
+    },
     async getContract(orderId: string) {
       const o = order && order.id === orderId ? order : null;
       if (!o || !o.driver) return null;
