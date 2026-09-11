@@ -167,6 +167,9 @@ export type HistoryItem = {
   date: string;
   from: string;
   to: string;
+  /** full locations so a past address can be re-used with one tap */
+  fromLoc?: Location;
+  toLoc?: Location;
   pallets: number;
   loadMode?: LoadMode;
   quantityDesc?: string;

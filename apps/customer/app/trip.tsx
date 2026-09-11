@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Avatar, Button, H2, MapView, Plate, Progress, RoundButton, RouteBlock, Sheet, Tag, Tiny, Toast, colors, formatNTD, haversineKm, loadLabel, showAlert } from '@truck/shared';
+import { Avatar, Button, H2, MapView, Plate, Progress, RoundButton, RouteBlock, Sheet, Tag, Tiny, Toast, colors, formatNTD, haversineKm, loadLabel, showAlert, className } from '@truck/shared';
 import { useStore } from '../store';
 
 export default function Trip() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { order: o, toast, cancel } = useStore();
+  const { order: o, toast, cancel, classes } = useStore();
 
   if (!o) {
     return (
@@ -25,7 +25,7 @@ export default function Trip() {
   const remainingKm = here ? Math.round(haversineKm(here, o.status === 'accepted' ? o.pickup : o.drop) * 1.2) : null;
   const eta =
     o.status === 'accepted'
-      ? remainingKm != null ? `距離裝貨點約 ${remainingKm} km` : '等待司機位置…'
+      ? remainingKm != null ? `距離裝貨點約 ${remainingKm} km · 約 ${Math.max(3, Math.round(remainingKm * 1.3))} 分鐘` : '等待司機位置…'
       : o.status === 'arrived'
         ? '請於 30 分鐘內完成裝貨'
         : o.status === 'in_transit'
@@ -73,7 +73,7 @@ export default function Trip() {
               <View style={s.radar}>
                 <Ionicons name="bus" size={26} />
               </View>
-              <H2>正在為您尋找 17噸 大貨車</H2>
+              <H2>正在為您尋找 {className(classes, o.classId)} 車輛</H2>
               <Tiny>{o.status === 'offered' ? '已通知附近司機，等待接單…' : '搜尋附近上線中的司機…'}</Tiny>
               {o.needTailLift ? <Tiny>此單需要升降尾門，只會派給有尾門的車輛，等候時間可能較久。</Tiny> : null}
             </View>

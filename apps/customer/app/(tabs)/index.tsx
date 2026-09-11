@@ -2,17 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, CARGO_TYPES, LOCATIONS, MapView, Chip, H2, RoundButton, Row, Sheet, Toast, colors } from '@truck/shared';
+import { Button, CARGO_TYPES, MapView, Chip, H2, RoundButton, Row, Sheet, Toast, colors, isSet, recentPlaces } from '@truck/shared';
 import { useStore } from '../../store';
 
 export default function Home() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { pickup, drop, order, toast, set } = useStore();
+  const { pickup, drop, myLoc, history, order, toast, set, swapRoute } = useStore();
+  const ready = isSet(pickup) && isSet(drop);
+  const recents = recentPlaces(history, 3).filter((l) => l.name !== pickup.name && l.name !== drop.name);
+  const center = isSet(pickup) ? pickup : myLoc ?? pickup;
 
   return (
     <View style={{ flex: 1 }}>
-      <MapView center={pickup} zoom={11} pickup={pickup} />
+      <MapView center={center} zoom={isSet(pickup) || myLoc ? 13 : 8} pickup={isSet(pickup) ? pickup : myLoc ?? undefined} />
       <Toast message={toast} />
 
       <View style={[s.topbar, { top: insets.top + 6 }]}>
@@ -25,26 +28,31 @@ export default function Home() {
       </View>
 
       <Sheet>
-        <View style={s.searchBox}>
-          <Pressable style={s.searchRow} onPress={() => router.push('/route?edit=pickup')}>
-            <View style={s.dot} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.searchLabel}>裝貨地點（起點）</Text>
-              <Text style={s.searchText} numberOfLines={1}>{pickup.name}</Text>
-            </View>
-            <Text style={s.change}>更改</Text>
-          </Pressable>
-          <View style={s.divider} />
-          <Pressable style={s.searchRow} onPress={() => router.push('/route?edit=drop')}>
-            <View style={s.square} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.searchLabel}>卸貨地點（終點）</Text>
-              <Text style={s.searchText} numberOfLines={1}>{drop.name}</Text>
-            </View>
-            <Text style={s.change}>更改</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={[s.searchBox, { flex: 1 }]}>
+            <Pressable style={s.searchRow} onPress={() => router.push('/route?edit=pickup')}>
+              <View style={s.dot} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.searchLabel}>裝貨地點（起點）</Text>
+                <Text style={[s.searchText, !isSet(pickup) && { color: colors.ink3 }]} numberOfLines={1}>{pickup.name}</Text>
+              </View>
+              <Text style={s.change}>{isSet(pickup) ? '更改' : '搜尋'}</Text>
+            </Pressable>
+            <View style={s.divider} />
+            <Pressable style={s.searchRow} onPress={() => router.push('/route?edit=drop')}>
+              <View style={s.square} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.searchLabel}>卸貨地點（終點）</Text>
+                <Text style={[s.searchText, !isSet(drop) && { color: colors.ink3 }]} numberOfLines={1}>{drop.name}</Text>
+              </View>
+              <Text style={s.change}>{isSet(drop) ? '更改' : '搜尋'}</Text>
+            </Pressable>
+          </View>
+          <Pressable onPress={swapRoute} style={s.swap} accessibilityLabel="對調起點與終點">
+            <Ionicons name="swap-vertical" size={20} color={colors.ink} />
           </Pressable>
         </View>
-        <Button title="下一步：貨物內容" onPress={() => router.push('/cargo')} />
+        <Button title={ready ? '下一步：貨物內容' : '先選擇起點與終點'} disabled={!ready} onPress={() => router.push('/cargo')} />
 
         {order && order.status !== 'cancelled' ? (
           <Pressable style={s.banner} onPress={() => router.push(order.status === 'created' ? '/checkout' : order.status === 'completed' ? '/receipt' : '/trip')}>
@@ -56,22 +64,25 @@ export default function Home() {
           </Pressable>
         ) : null}
 
-        <View>
-          {LOCATIONS.filter((l) => l.name !== pickup.name)
-            .slice(0, 3)
-            .map((l) => (
+        {recents.length > 0 ? (
+          <View>
+            <H2>最近送過</H2>
+            {recents.map((l) => (
               <Row
                 key={l.id}
                 title={l.name}
                 subtitle={l.addr}
-                icon={<Ionicons name="business-outline" size={18} />}
+                icon={<Ionicons name="time-outline" size={18} />}
                 onPress={() => {
-                  set({ drop: l, route: null });
-                  router.push('/route?edit=drop');
+                  // fill whichever end is still empty (drop first, like Uber's "where to?")
+                  if (!isSet(drop)) set({ drop: l, route: null });
+                  else if (!isSet(pickup)) set({ pickup: l, route: null });
+                  else set({ drop: l, route: null });
                 }}
               />
             ))}
-        </View>
+          </View>
+        ) : null}
 
         <H2>常用出貨</H2>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -109,6 +120,7 @@ const s = StyleSheet.create({
   },
   pillText: { fontWeight: '800', fontSize: 13, flexShrink: 1 },
   searchBox: { backgroundColor: colors.fill, borderRadius: 16, paddingHorizontal: 16 },
+  swap: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
   searchLabel: { fontSize: 11, fontWeight: '700', color: colors.ink2, letterSpacing: 0.4 },
   searchText: { fontWeight: '700', fontSize: 16, color: colors.ink },

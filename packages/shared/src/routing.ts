@@ -141,3 +141,17 @@ async function geocodeNominatim(q: string): Promise<GeocodeHit[]> {
 
 /** "台灣桃園市中壢區…" → "桃園市中壢區…"; drops postal code prefix Google adds. */
 const tidyTwAddress = (a: string) => a.replace(/^(\d{3,6})?\s*(台灣|臺灣)?\s*/, '').trim();
+
+/** Best-effort street address for a coordinate (Nominatim reverse). Returns null if unavailable. */
+export async function reverseGeocode(p: LatLng): Promise<string | null> {
+  try {
+    const res = await fetch(`${NOMINATIM_URL}/reverse?format=jsonv2&accept-language=zh-TW&zoom=18&lat=${p.lat}&lon=${p.lng}`, { headers: { 'User-Agent': 'truck-uber-mvp/0.1 (contact: app)' } });
+    if (!res.ok) return null;
+    const r = (await res.json()) as { address?: Record<string, string>; display_name?: string };
+    const a = r.address ?? {};
+    const parts = [a.city || a.county || a.state, a.suburb || a.town || a.village || a.city_district, a.road, a.house_number ? a.house_number + '號' : ''].filter(Boolean);
+    return parts.length ? parts.join('') : r.display_name?.split(',').slice(0, 3).reverse().join('') ?? null;
+  } catch {
+    return null;
+  }
+}

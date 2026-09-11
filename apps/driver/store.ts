@@ -105,8 +105,13 @@ export const useStore = create<State>((set, get) => ({
     try {
       if (next) {
         const loc = await getCurrentLocation();
-        await backend.setOnline(true, loc ?? undefined);
-        set({ online: true, lastLoc: loc, locationDenied: !loc });
+        if (!loc) {
+          // no position = no dispatch: a customer must never see a made-up truck location
+          set({ locationDenied: true, online: false });
+          throw new Error('需要開啟定位權限才能上線。請到手機設定允許「大車司機」使用位置，再試一次。');
+        }
+        await backend.setOnline(true, loc);
+        set({ online: true, lastLoc: loc, locationDenied: false });
         await startGps();
         startPolling();
       } else {

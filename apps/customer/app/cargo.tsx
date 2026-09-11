@@ -147,7 +147,7 @@ export default function Cargo() {
           <Tiny>拍已經打包好、準備出貨的實際貨態。司機接單前會看，也是出貨證明與運輸途中倒塌時的責任釐清依據。</Tiny>
           {cargoPhotoUri ? (
             <View style={{ gap: 8 }}>
-              <Image source={{ uri: cargoPhotoUri }} style={s.photo} resizeMode="cover" />
+              <Image source={{ uri: cargoPhotoUri }} style={s.photo} resizeMode="contain" />
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Button title="重拍" variant="secondary" style={{ flex: 1 }} onPress={() => snap(takeCargoPhoto)} />
                 <Button title="移除" variant="secondary" style={{ flex: 1 }} onPress={() => set({ cargoPhotoUri: null })} />
@@ -172,7 +172,7 @@ const s = StyleSheet.create({
   mode: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: colors.line, borderRadius: 12, padding: 10 },
   modeOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   modeTitle: { fontWeight: '800', fontSize: 13 },
-  photo: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12, backgroundColor: colors.fill },
+  photo: { width: '100%', height: 300, borderRadius: 12, backgroundColor: '#111' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingBottom: 14 },
   label: { fontSize: 12, fontWeight: '700', color: colors.ink2, letterSpacing: 0.5 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

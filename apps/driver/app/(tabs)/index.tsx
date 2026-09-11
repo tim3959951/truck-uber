@@ -160,7 +160,7 @@ function CargoPhoto({ url }: { url?: string }) {
   if (!url) return null;
   return (
     <Pressable onPress={() => Linking.openURL(url)} style={{ gap: 4 }}>
-      <Image source={{ uri: url }} style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 10, backgroundColor: '#eee' }} resizeMode="cover" />
+      <Image source={{ uri: url }} style={{ width: '100%', height: 220, borderRadius: 10, backgroundColor: '#111' }} resizeMode="contain" />
       <Tiny>現場貨物照片（點一下放大）</Tiny>
     </Pressable>
   );

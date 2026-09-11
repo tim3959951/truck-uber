@@ -274,7 +274,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
         });
       } else if (next === 'completed' && o.status === 'delivered') {
         setStatus('completed');
-        const item: HistoryItem = { id: o.id, orderNo: o.orderNo, date: '今天', from: o.pickup.name, to: o.drop.name, pallets: o.pallets, cargo: o.cargo.name, total: o.quote.total, driverAmount: o.quote.driverAmount, status: 'completed' };
+        const item: HistoryItem = { id: o.id, orderNo: o.orderNo, date: '今天', from: o.pickup.name, to: o.drop.name, fromLoc: o.pickup, toLoc: o.drop, pallets: o.pallets, cargo: o.cargo.name, total: o.quote.total, driverAmount: o.quote.driverAmount, status: 'completed' };
         history.unshift(item);
         earnings.unshift({ amount: o.quote.driverAmount, at: Date.now(), item });
         if (role === 'driver') later(2500, () => { order = null; scheduleIncoming(); });

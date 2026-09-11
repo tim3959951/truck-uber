@@ -137,6 +137,8 @@ function toHistory(o: Order): HistoryItem {
     date: `${d.getMonth() + 1}/${d.getDate()}`,
     from: o.pickup.name,
     to: o.drop.name,
+    fromLoc: o.pickup,
+    toLoc: o.drop,
     pallets: o.pallets,
     loadMode: o.loadMode,
     quantityDesc: o.quantityDesc,

@@ -22,8 +22,8 @@ export const CARGO_TYPES: CargoType[] = [
 ];
 
 export const TIERS: Tier[] = [
-  { id: 'dedicated', name: '17噸 專車', desc: '立即派車，整車專屬', factor: 1.0, eta: '8 分鐘內到達' },
-  { id: 'backhaul', name: '17噸 回頭車', desc: '順路回程車，價格較低、等候較久', factor: 0.75, eta: '約 25–40 分鐘' },
+  { id: 'dedicated', name: '專車', desc: '立即派最近的空車，整車專屬', factor: 1.0, eta: '接單後依司機位置估算抵達時間' },
+  { id: 'backhaul', name: '回頭車', desc: '順路回程車，價格較低、要等有順路的車', factor: 0.75, eta: '等候時間視順路車而定' },
 ];
 
 export const MOCK_DRIVER: Driver = {
@@ -49,6 +49,36 @@ export const MOCK_HISTORY: HistoryItem[] = [
   { id: 'TK-2411', orderNo: 'TK-2411', date: '9/8', from: '觀音工業區', to: '員林 建材行', pallets: 12, cargo: '建材 / 磚水泥', total: 6980, driverAmount: 5933, status: 'completed' },
   { id: 'TK-2398', orderNo: 'TK-2398', date: '9/5', from: '觀音工業區', to: '新市 科學園區', pallets: 6, cargo: '機械設備', total: 9740, driverAmount: 8279, status: 'completed' },
 ];
+
+/** placeholder until the customer picks a place; map falls back to the middle of Taiwan */
+export const UNSET_PICKUP: Location = { id: 'unset', name: '選擇裝貨地點', addr: '', lat: 24.15, lng: 120.9 };
+export const UNSET_DROP: Location = { id: 'unset', name: '選擇卸貨地點', addr: '', lat: 24.15, lng: 120.9 };
+export const isSet = (l: Location) => l.id !== 'unset';
+
+/** distinct places from past orders, most recent first (both ends of each trip) */
+export function recentPlaces(history: HistoryItem[], limit = 6): Location[] {
+  const out: Location[] = [];
+  const seen = new Set<string>();
+  for (const h of history) {
+    for (const l of [h.fromLoc, h.toLoc]) {
+      if (!l || !isSet(l) || seen.has(l.name)) continue;
+      seen.add(l.name);
+      out.push({ ...l, id: `recent-${out.length}` });
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+/** places used most often (ties → most recent) */
+export function frequentPlaces(history: HistoryItem[], limit = 3): Location[] {
+  const count = new Map<string, { l: Location; n: number }>();
+  history.forEach((h) => [h.fromLoc, h.toLoc].forEach((l) => {
+    if (!l || !isSet(l)) return;
+    const e = count.get(l.name);
+    if (e) e.n += 1; else count.set(l.name, { l, n: 1 });
+  }));
+  return [...count.values()].filter((e) => e.n >= 2).sort((a, b) => b.n - a.n).slice(0, limit).map((e, i) => ({ ...e.l, id: `freq-${i}` }));
+}
 
 export const locationById = (id: string) => LOCATIONS.find((l) => l.id === id) ?? LOCATIONS[0];
 export const cargoById = (id: string) => CARGO_TYPES.find((c) => c.id === id) ?? CARGO_TYPES[0];

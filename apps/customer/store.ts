@@ -5,7 +5,6 @@ import {
   DEFAULT_PRICING,
   DriverLocation,
   HistoryItem,
-  LOCATIONS,
   LoadMode,
   Location,
   Order,
@@ -15,13 +14,18 @@ import {
   RouteResult,
   Session,
   SignUpInput,
+  UNSET_DROP,
+  UNSET_PICKUP,
   Unsubscribe,
   VehicleClass,
   cargoById,
   classById,
   createBackend,
+  getCurrentLocation,
   getRoute,
+  isSet,
   recommendClass,
+  reverseGeocode,
   phaseProgress,
   registerForPush,
   tierById,
@@ -40,6 +44,8 @@ type State = {
   // booking draft
   pickup: Location;
   drop: Location;
+  /** device position (asked once at start, never required) */
+  myLoc: Location | null;
   pallets: number;
   cargoId: string;
   note: string;
@@ -71,6 +77,9 @@ type State = {
   /** update cargo fields and re-run the class recommendation unless the customer picked one */
   setCargo: (patch: Partial<Pick<State, 'pallets' | 'weightT' | 'loadMode' | 'quantityDesc'>>) => void;
   pickClass: (classId: string) => void;
+  /** ask for the device position; if the pickup is still unset, use it as the pickup */
+  locateMe: () => Promise<void>;
+  swapRoute: () => void;
   init: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<boolean>;
@@ -97,8 +106,9 @@ export const useStore = create<State>((set, get) => ({
   pricing: DEFAULT_PRICING,
   engine: new PricingEngine(DEFAULT_PRICING),
   classes: DEFAULT_CLASSES,
-  pickup: LOCATIONS[0],
-  drop: LOCATIONS[2],
+  pickup: UNSET_PICKUP,
+  drop: UNSET_DROP,
+  myLoc: null,
   pallets: 8,
   cargoId: 'soil',
   note: '',
@@ -132,11 +142,25 @@ export const useStore = create<State>((set, get) => ({
   pickClass(classId) {
     set({ classId, classPicked: true });
   },
+  async locateMe() {
+    const loc = await getCurrentLocation();
+    if (!loc) return;
+    const addr = (await reverseGeocode(loc).catch(() => null)) ?? `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
+    const me: Location = { id: 'me', name: '目前位置', addr, lat: loc.lat, lng: loc.lng };
+    set({ myLoc: me });
+    if (!isSet(get().pickup)) set({ pickup: me });
+  },
+  swapRoute() {
+    const { pickup, drop } = get();
+    if (!isSet(pickup) && !isSet(drop)) return;
+    set({ pickup: isSet(drop) ? drop : UNSET_PICKUP, drop: isSet(pickup) ? pickup : UNSET_DROP, route: null });
+  },
 
   async init() {
     const session = await backend.getSession().catch(() => null);
     set({ session, authReady: true });
     if (session) await afterLogin();
+    get().locateMe().catch(() => {});
   },
   async signIn(email, password) {
     const session = await backend.signIn(email, password);
