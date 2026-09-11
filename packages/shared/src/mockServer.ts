@@ -10,7 +10,7 @@
 import type { Backend, Unsubscribe } from './backend';
 import { CARGO_TYPES, DEFAULT_CLASSES, LOCATIONS, MOCK_CUSTOMER, MOCK_DRIVER, MOCK_HISTORY, TIERS, classById } from './data';
 import { bearing, DEFAULT_PRICING, defaultEngine, routePath } from './pricing';
-import type { DriverLocation, HistoryItem, Order, OrderInput, OrderStatus, Session, SignUpInput } from './types';
+import type { Contract, DriverLocation, HistoryItem, Order, OrderInput, OrderStatus, Session, SignUpInput } from './types';
 
 const APPROACH_MS = 14000;
 const TRANSIT_MS = 22000;
@@ -21,6 +21,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
   let online = false;
   let session: Session | null = null;
   const history: HistoryItem[] = [...MOCK_HISTORY];
+  let mockContract: Contract | null = null;
   const earnings: { amount: number; at: number; item: HistoryItem }[] = [];
   const orderListeners = new Map<string, Set<(o: Order) => void>>();
   const driverListeners = new Set<(o: Order) => void>();
@@ -187,6 +188,24 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
 
     async uploadCargoPhoto(localUri: string) {
       return localUri;
+    },
+    async getContract(orderId: string) {
+      const o = order && order.id === orderId ? order : null;
+      if (!o || !o.driver) return null;
+      if (!mockContract || mockContract.orderId !== orderId) {
+        mockContract = {
+          id: 'ct-' + orderId, contractNo: 'CT-DEMO-' + orderId.slice(-4).toUpperCase(), orderId, version: 1, termsVersion: 1,
+          termsText: '（離線示範）正式版條款由伺服器提供。',
+          content: { order: { order_no: o.orderNo, pickup: o.pickup, dest: o.drop, class_name: o.classId, cargo_type: o.cargo.name, pallets: o.pallets, load_mode: o.loadMode, quoted_price: o.quote.total, payment_method: 'sandbox', pickup_at: new Date(o.createdAt).toISOString() }, customer: { name: o.customer.contact, phone: o.customer.phone, company: o.customer.company }, carrier: { type: 'driver', driver: { name: o.driver.name, phone: o.driver.phone }, vehicle: { plate: o.driver.plate } } },
+          carrierType: 'driver', contentHash: 'demo', formedAt: Date.now(),
+        };
+      }
+      return mockContract;
+    },
+    async ackContract(contractId: string) {
+      if (!mockContract || mockContract.id !== contractId) throw new Error('no such contract');
+      if (role === 'customer') mockContract.customerAckAt = Date.now(); else mockContract.carrierAckAt = Date.now();
+      return mockContract;
     },
     async createOrder(input) {
       clearAll();

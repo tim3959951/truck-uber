@@ -141,6 +141,52 @@ do $$ declare o public.orders; begin
   assert o.offered_driver_id is null, 'offer cleared';
 end $$;
 
+-- --- contract (0005): formed on accept, visible to both parties, immutable ------
+do $$ declare c public.contracts; o public.orders; begin
+  select * into c from public.contracts where order_id = (select id from t);   -- as the driver (RLS)
+  assert c.id is not null, 'contract formed on accept';
+  assert c.carrier_type = 'driver' and c.carrier_driver_id = public.my_driver_id(), 'driver is the carrier (no operator)';
+  assert c.content->'order'->>'order_no' = (pg_temp.o((select id from t))).order_no, 'order snapshot';
+  assert c.content->'carrier'->'vehicle'->>'plate' = 'KEA-5177', 'vehicle snapshot';
+  assert c.terms_version = 1 and length(c.terms_text) > 500, 'terms copied';
+  assert c.content_hash = encode(sha256(convert_to(c.content::text || c.terms_text, 'UTF8')), 'hex'), 'hash matches';
+  o := pg_temp.o((select id from t));
+  assert o.carrier_type = 'driver' and o.carrier_id = public.my_driver_id() and o.dropoff_at is not null, 'order carries carrier + eta';
+  -- driver acknowledges
+  c := public.ack_contract(c.id);
+  assert c.carrier_ack_at is not null and c.customer_ack_at is null, 'driver ack only';
+  -- nobody can edit it
+  begin
+    update public.contracts set content = '{}'::jsonb where id = c.id;
+    raise exception 'contract edit should fail';
+  exception when others then
+    if sqlerrm not like '%immutable%' and sqlerrm not like '%permission denied%' and sqlerrm not like '%row-level%' then raise; end if;
+  end;
+end $$;
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ declare c public.contracts; begin
+  select * into c from public.contracts where order_id = (select id from t);
+  assert c.id is not null, 'customer sees the contract';
+  c := public.ack_contract(c.id);
+  assert c.customer_ack_at is not null and c.carrier_ack_at is not null, 'both acked';
+end $$;
+select auth.login('33333333-3333-3333-3333-333333333333');
+do $$ begin
+  assert (select count(*) from public.contracts where order_id = (select id from t)) = 0, 'other driver cannot see it';
+end $$;
+select auth.login('22222222-2222-2222-2222-222222222222');
+reset role; set role postgres;
+do $$ begin
+  begin
+    delete from public.contracts where order_id = (select id from t);
+    raise exception 'delete should fail';
+  exception when others then
+    if sqlerrm not like '%immutable%' then raise; end if;
+  end;
+end $$;
+set role authenticated;
+select auth.login('22222222-2222-2222-2222-222222222222');
+
 -- the customer can now see this driver's live location (RLS), but not driver 2's
 select auth.login('11111111-1111-1111-1111-111111111111');
 do $$ begin

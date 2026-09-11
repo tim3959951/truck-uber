@@ -1,4 +1,5 @@
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar, Button, DEFAULT_CLASSES, H2, MapView, Order, Progress, RoundButton, RouteBlock, Sheet, Tag, Tiny, Toast, className, colors, formatNTD, kmToMinutes, loadLabel, showAlert } from '@truck/shared';
 import { useStore } from '../../store';
@@ -102,6 +103,7 @@ export default function DriverHome() {
 }
 
 function ActiveTrip({ order: o, busy, onAdvance, bottom }: { order: Order; busy: boolean; onAdvance: (next: 'arrived' | 'in_transit' | 'delivered' | 'completed') => void; bottom: number }) {
+  const router = useRouter();
   const head = { accepted: '前往裝貨點', arrived: '已抵達 · 等候裝貨', in_transit: '運送至卸貨點', delivered: '已抵達 · 卸貨中', completed: '此單已完成' }[o.status as 'accepted'] ?? '';
   const dest = o.status === 'accepted' || o.status === 'arrived' ? o.pickup : o.drop;
   const navigate = () => {
@@ -140,6 +142,7 @@ function ActiveTrip({ order: o, busy, onAdvance, bottom }: { order: Order; busy:
       </View>
       {o.note ? <Tiny>備註：{o.note}</Tiny> : null}
       <CargoPhoto url={o.cargoPhotoUrl} />
+      <Button title="查看運送契約（接單即成立）" variant="secondary" small onPress={() => router.push(`/contract?order=${o.id}`)} />
       {o.status === 'accepted' ? (
         <Button title="已抵達裝貨點" onPress={() => onAdvance('arrived')} loading={busy} />
       ) : o.status === 'arrived' ? (

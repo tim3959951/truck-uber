@@ -109,6 +109,7 @@ export default function Trip() {
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Button title="撥打" variant="secondary" small style={{ flex: 1 }} onPress={call} />
               <Button title="傳簡訊" variant="secondary" small style={{ flex: 1 }} onPress={sms} />
+              <Button title="運送契約" variant="secondary" small style={{ flex: 1 }} onPress={() => router.push(`/contract?order=${o.id}`)} />
             </View>
             <RouteBlock pickup={o.pickup} drop={o.drop} />
             <View style={s.tags}>

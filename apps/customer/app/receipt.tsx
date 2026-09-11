@@ -55,7 +55,8 @@ export default function Receipt() {
           ))}
         </View>
       </ScrollView>
-      <View style={{ padding: 20, paddingBottom: insets.bottom + 16 }}>
+      <View style={{ padding: 20, paddingBottom: insets.bottom + 16, gap: 10 }}>
+        <Button title="查看運送契約" variant="secondary" small onPress={() => router.push(`/contract?order=${o.id}`)} />
         <Button
           title="送出評分"
           disabled={!rating}

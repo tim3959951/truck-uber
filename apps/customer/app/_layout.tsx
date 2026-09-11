@@ -60,6 +60,7 @@ export default function RootLayout() {
         <Stack.Screen name="checkout" options={{ gestureEnabled: false }} />
         <Stack.Screen name="trip" options={{ gestureEnabled: false }} />
         <Stack.Screen name="receipt" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="contract" />
       </Stack>
     </>
   );

@@ -16,6 +16,7 @@ import type {
   Session,
   SignUpInput,
   VehicleClass,
+  Contract,
 } from './types';
 
 export type Unsubscribe = () => void;
@@ -47,6 +48,11 @@ export interface Backend {
   pollOrder(orderId: string): Promise<Order>;
   cancelOrder(orderId: string, reason?: string): Promise<Order>;
   rateOrder(orderId: string, stars: number, tags: string[]): Promise<Order>;
+
+  // ---- contract (formed automatically when a driver accepts) ---------------
+  getContract(orderId: string): Promise<Contract | null>;
+  /** current user (customer or carrier driver) marks the contract as read */
+  ackContract(contractId: string): Promise<Contract>;
 
   // ---- orders (both roles) -------------------------------------------------
   getOrder(orderId: string): Promise<Order | null>;

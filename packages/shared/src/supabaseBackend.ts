@@ -18,6 +18,7 @@ import type {
   Session,
   SignUpInput,
   VehicleClass,
+  Contract,
 } from './types';
 
 /* ---------- row types (subset of public.orders) ---------- */
@@ -126,6 +127,23 @@ export function mapOrderRow(r: OrderRow): Order {
     path: r.route_polyline && r.route_polyline.length > 1 ? r.route_polyline : routePath(pickup, drop),
     progress: 0,
     rating: r.rating ?? undefined,
+  };
+}
+
+function mapContract(r: any): Contract {
+  return {
+    id: r.id,
+    contractNo: r.contract_no,
+    orderId: r.order_id,
+    version: num(r.version, 1),
+    termsVersion: num(r.terms_version, 1),
+    termsText: r.terms_text ?? '',
+    content: r.content ?? {},
+    carrierType: r.carrier_type === 'operator' ? 'operator' : 'driver',
+    contentHash: r.content_hash ?? '',
+    formedAt: Date.parse(r.formed_at),
+    customerAckAt: r.customer_ack_at ? Date.parse(r.customer_ack_at) : undefined,
+    carrierAckAt: r.carrier_ack_at ? Date.parse(r.carrier_ack_at) : undefined,
   };
 }
 
@@ -339,6 +357,17 @@ export function createSupabaseBackend(): Backend {
     pollOrder: (orderId) => rpcOrder('poll_order', { p_order: orderId }),
     cancelOrder: (orderId, reason) => rpcOrder('cancel_order', { p_order: orderId, p_reason: reason ?? null }),
     rateOrder: (orderId, stars, tags) => rpcOrder('rate_order', { p_order: orderId, p_stars: stars, p_tags: tags }),
+
+    /* ---- contract ---- */
+    async getContract(orderId) {
+      const { data } = await sb.from('contracts').select('*').eq('order_id', orderId).maybeSingle();
+      return data ? mapContract(data) : null;
+    },
+    async ackContract(contractId) {
+      const { data, error } = await sb.rpc('ack_contract', { p_contract: contractId });
+      if (error) throw new Error(error.message);
+      return mapContract(data);
+    },
 
     /* ---- both ---- */
     async getOrder(orderId) {

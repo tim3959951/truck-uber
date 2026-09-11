@@ -221,3 +221,20 @@ export type SignUpInput = {
 };
 
 export type DriverLocation = { lat: number; lng: number; heading?: number; speed?: number };
+
+/** Mirrors public.contracts — 客戶與實際承運人之間的電子運送契約（接單時成立、不可修改） */
+export type Contract = {
+  id: string;
+  contractNo: string;
+  orderId: string;
+  version: number;
+  termsVersion: number;
+  termsText: string;
+  /** snapshot: { order, customer, carrier, platform } — see form_contract in 0005 */
+  content: Record<string, any>;
+  carrierType: 'driver' | 'operator';
+  contentHash: string;
+  formedAt: number;
+  customerAckAt?: number;
+  carrierAckAt?: number;
+};

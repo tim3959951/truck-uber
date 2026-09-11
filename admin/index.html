@@ -115,14 +115,14 @@ async function render() {
   $('#main').innerHTML = '<span class="muted">載入中…</span>';
   try {
     if (tab === 'orders') {
-      const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending: false }).limit(200);
+      const { data, error } = await sb.from('orders').select('*, contracts(contract_no, formed_at, customer_ack_at, carrier_ack_at)').order('created_at', { ascending: false }).limit(200);
       if (error) throw error;
       $('#main').innerHTML = `<div class="row"><b>訂單</b><span class="muted">${data.length} 筆（最新 200）</span><button class="sm" onclick="render()">重新整理</button></div>` +
         table(['單號', '狀態', '建立', '客戶', '司機 / 車牌', '起點 → 終點', '托 · 貨物', '車種', 'km', '運費', '抽成', '司機', '評分', '操作'], data, (o) => `<tr>
           <td><b>${esc(o.order_no)}</b><br><span class="muted">${esc(o.id.slice(0, 8))}</span></td><td>${pill(o.status)}</td><td>${ts(o.created_at)}</td>
           <td>${esc(o.customer_company || o.customer_name)}<br><span class="muted">${esc(o.customer_phone)}</span></td>
           <td>${esc(o.driver_name || '—')}<br><span class="muted">${esc(o.vehicle_plate || '')}</span></td>
-          <td>${esc(o.pickup_name)} → ${esc(o.dest_name)}</td><td>${esc(o.class_id || '17t')} · ${o.load_mode === 'full' ? '整車' + (o.quantity_desc ? '（' + esc(o.quantity_desc) + '）' : '') : o.pallets + ' 托'}${o.weight_t ? ' · ' + o.weight_t + ' 噸' : ''} · ${esc(o.cargo_type)}${o.need_tail_lift ? '<br><span class="pill warn">需尾門</span>' : ''}${o.helpers ? `<br><span class="pill warn">搬工×${o.helpers}</span>` : ''}${o.cargo_photo_url ? `<br><a href="${esc(o.cargo_photo_url)}" target="_blank" rel="noopener">📷 貨物照片</a>` : ''}</td><td>${esc(o.truck_tier)}</td>
+          <td>${esc(o.pickup_name)} → ${esc(o.dest_name)}</td><td>${esc(o.class_id || '17t')} · ${o.load_mode === 'full' ? '整車' + (o.quantity_desc ? '（' + esc(o.quantity_desc) + '）' : '') : o.pallets + ' 托'}${o.weight_t ? ' · ' + o.weight_t + ' 噸' : ''} · ${esc(o.cargo_type)}${o.need_tail_lift ? '<br><span class="pill warn">需尾門</span>' : ''}${o.helpers ? `<br><span class="pill warn">搬工×${o.helpers}</span>` : ''}${o.cargo_photo_url ? `<br><a href="${esc(o.cargo_photo_url)}" target="_blank" rel="noopener">📷 貨物照片</a>` : ''}${o.contracts && o.contracts.length ? `<br><span class="pill">契約 ${esc(o.contracts[0].contract_no)}</span> <span class="muted">${o.contracts[0].customer_ack_at ? '客✓' : '客–'} ${o.contracts[0].carrier_ack_at ? '運✓' : '運–'}</span>` : ''}</td><td>${esc(o.truck_tier)}</td>
           <td>${o.estimated_km} <span class="muted">${esc(o.distance_source)}</span></td><td>${ntd(o.quoted_price)}</td><td>${ntd(o.platform_fee)}</td><td>${ntd(o.driver_amount)}</td><td>${o.rating ? '★' + o.rating : ''}</td>
           <td><button class="sm" onclick="events('${o.id}')">事件</button>${['completed', 'cancelled'].includes(o.status) ? '' : `<button class="sm danger" onclick="cancelOrder('${o.id}')">取消</button>`}</td></tr>`) +
         `<div id="events"></div>`;

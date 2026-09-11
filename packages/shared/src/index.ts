@@ -15,3 +15,4 @@ export * from './ui';
 export * from './MapView';
 export * from './alert';
 export * from './AuthForm';
+export * from './ContractView';
