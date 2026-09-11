@@ -73,7 +73,7 @@ export default function Trip() {
               <View style={s.radar}>
                 <Ionicons name="bus" size={26} />
               </View>
-              <H2>正在為您尋找 {className(classes, o.classId)} 車輛</H2>
+              <H2>正在通知符合條件的 {className(classes, o.classId)} 承運人</H2>
               <Tiny>{o.status === 'offered' ? '已通知附近司機，等待接單…' : '搜尋附近上線中的司機…'}</Tiny>
               {o.needTailLift ? <Tiny>此單需要升降尾門，只會派給有尾門的車輛，等候時間可能較久。</Tiny> : null}
             </View>

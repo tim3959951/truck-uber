@@ -34,7 +34,7 @@ export default function Account() {
       </View>
       <View style={{ gap: 8 }}>
         <Text style={{ fontWeight: '700', fontSize: 15 }}>我的車型級距</Text>
-        <Tiny>派單只派同級距的訂單；改了立刻生效。</Tiny>
+        <Tiny>只會收到同級距的媒合通知；改了立刻生效。</Tiny>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {DEFAULT_CLASSES.map((k) => {
             const on = session?.vehicle?.classId === k.id;

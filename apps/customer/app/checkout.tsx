@@ -65,7 +65,7 @@ export default function Checkout() {
           </View>
           <Ionicons name="checkmark-circle" size={22} color={colors.ink} />
         </View>
-        <Tiny>付款完成後平台會立即為您尋找 {className(classes, o.classId)}的車；找不到司機時可隨時取消並全額退款。</Tiny>
+        <Tiny>付款後平台會通知符合條件的 {className(classes, o.classId)} 承運人，由承運人決定是否承接；沒有承運人承接時可隨時取消並全額退款。</Tiny>
       </ScrollView>
       <View style={{ padding: 20, paddingBottom: insets.bottom + 16, gap: 10 }}>
         <Button title={`付款 ${formatNTD(o.quote.total)}`} onPress={onPay} loading={busy} />

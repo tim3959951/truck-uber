@@ -67,7 +67,7 @@ export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind 
               <>
                 <Field label="車牌號碼" value={plate} onChangeText={(t) => setPlate(t.toUpperCase())} autoCapitalize="characters" placeholder="KEA-5177" />
                 <View style={{ gap: 6 }}>
-                  <Text style={s.label}>車型級距（派單只派同級距的單）</Text>
+                  <Text style={s.label}>車型級距（只會收到同級距的媒合通知）</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {DEFAULT_CLASSES.map((k) => {
                       const on = classId === k.id;

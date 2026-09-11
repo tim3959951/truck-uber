@@ -95,10 +95,11 @@ export default function Tier() {
           {q.tailLiftFee > 0 ? <Line label="升降尾門" value={formatNTD(q.tailLiftFee)} /> : null}
           {q.helperFee > 0 ? <Line label={`隨車搬運工 × ${helpers}`} value={formatNTD(q.helperFee)} /> : null}
           <View style={s.total}>
-            <Text style={{ fontWeight: '800', fontSize: 16 }}>預估總運費</Text>
+            <Text style={{ fontWeight: '800', fontSize: 16 }}>承運人報價（平台參考價）</Text>
             <Text style={{ fontWeight: '800', fontSize: 16 }}>{routeLoading ? '—' : formatNTD(q.total)}</Text>
           </View>
         </View>
+        <Tiny>此價格為平台依公開費率算出的參考價；承運人接單即表示同意以此價承運，運送契約在你與承運人之間成立，運費由金流直接撥付承運人。</Tiny>
         <Button title={`確認叫車 · ${cls.name} ${tier.name}`} onPress={confirm} loading={busy} disabled={routeLoading || !route || !fits(cls)} />
       </Sheet>
     </View>

@@ -83,7 +83,7 @@ export default function DriverHome() {
           <Sheet style={{ paddingBottom: insets.bottom + 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
-                <H2>{online ? '已上線 · 等待派單' : '您目前離線'}</H2>
+                <H2>{online ? '已上線 · 等待媒合通知' : '您目前離線'}</H2>
                 <Tiny>{online ? (lastLoc ? '定位中 · 位置每 5 秒回報' : locationDenied ? '未允許定位：仍可接單，但客戶看不到車輛位置' : '取得定位中…') : '按「上線」開始接單（需要定位權限）'}</Tiny>
               </View>
               <Tag label={online ? '● 上線' : '○ 離線'} tone={online ? 'go' : 'neutral'} />
@@ -152,7 +152,7 @@ function ActiveTrip({ order: o, busy, onAdvance, bottom }: { order: Order; busy:
       ) : o.status === 'delivered' ? (
         <Button title="確認卸貨完成，結束此單" variant="go" onPress={() => onAdvance('completed')} loading={busy} />
       ) : (
-        <Button title="已完成 · 等待下一筆派單" variant="secondary" disabled />
+        <Button title="已完成 · 等待下一筆媒合通知" variant="secondary" disabled />
       )}
     </Sheet>
   );
