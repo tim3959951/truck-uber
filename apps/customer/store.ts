@@ -164,7 +164,7 @@ export const useStore = create<State>((set, get) => ({
   },
   async signIn(email, password) {
     const session = await backend.signIn(email, password);
-    if (session.role !== 'customer') {
+    if (session.role !== 'customer' && session.role !== 'admin') {
       await backend.signOut();
       throw new Error('這是客戶端 App，請用客戶帳號登入（司機請使用司機端 App）');
     }
