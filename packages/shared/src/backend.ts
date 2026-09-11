@@ -50,7 +50,7 @@ export interface Backend {
   /** Called every few seconds while searching/offered: expires stale offers, re-dispatches. */
   pollOrder(orderId: string): Promise<Order>;
   cancelOrder(orderId: string, reason?: string): Promise<Order>;
-  rateOrder(orderId: string, stars: number, tags: string[]): Promise<Order>;
+  rateOrder(orderId: string, stars: number, tags: string[], comment?: string): Promise<Order>;
 
   // ---- contract (formed automatically when a driver accepts) ---------------
   getContract(orderId: string): Promise<Contract | null>;

@@ -30,8 +30,10 @@ export default function RootLayout() {
       return;
     }
     const screen = segments[0];
+    // while an order is live the customer stays on its screen (checkout → trip → receipt); the contract page is always allowed
+    if (screen === 'contract') return;
     if (status === 'created' && screen !== 'checkout') router.replace('/checkout');
-    else if (status && ['searching', 'offered', 'accepted', 'arrived', 'in_transit', 'delivered'].includes(status) && screen !== 'trip' && screen !== '(tabs)') router.replace('/trip');
+    else if (status && ['searching', 'offered', 'accepted', 'arrived', 'in_transit', 'delivered'].includes(status) && screen !== 'trip') router.replace('/trip');
     else if (status === 'completed' && screen !== 'receipt') router.replace('/receipt');
   }, [authReady, session, status, segments[0]]);
 

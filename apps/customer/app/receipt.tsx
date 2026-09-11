@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Chip, H1, H2, Tiny, colors, formatNTD } from '@truck/shared';
 import { useStore } from '../store';
@@ -13,6 +13,7 @@ export default function Receipt() {
   const insets = useSafeAreaInsets();
   const { order: o, rating, set, submitRating } = useStore();
   const [tags, setTags] = useState<string[]>([]);
+  const [comment, setComment] = useState('');
   if (!o) return null;
   const hm = (t?: number) => (t ? new Date(t).toTimeString().slice(0, 5) : '');
 
@@ -54,6 +55,15 @@ export default function Receipt() {
             <Chip key={t} label={t} selected={tags.includes(t)} onPress={() => setTags((x) => (x.includes(t) ? x.filter((y) => y !== t) : [...x, t]))} />
           ))}
         </View>
+        <TextInput
+          value={comment}
+          onChangeText={setComment}
+          placeholder="想補充什麼？（選填，例：卸貨很細心／遲到 20 分鐘）"
+          placeholderTextColor={colors.ink3}
+          multiline
+          maxLength={500}
+          style={{ marginHorizontal: 20, marginTop: 12, minHeight: 80, borderWidth: 1.5, borderColor: colors.line, borderRadius: 12, padding: 12, fontSize: 14, textAlignVertical: 'top' }}
+        />
       </ScrollView>
       <View style={{ padding: 20, paddingBottom: insets.bottom + 16, gap: 10 }}>
         <Button title="查看運送契約" variant="secondary" small onPress={() => router.push(`/contract?order=${o.id}`)} />
@@ -62,7 +72,7 @@ export default function Receipt() {
           disabled={!rating}
           onPress={async () => {
             try {
-              await submitRating(tags);
+              await submitRating(tags, comment.trim());
             } finally {
               router.replace('/');
             }

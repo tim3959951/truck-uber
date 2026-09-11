@@ -64,7 +64,7 @@ export default function DriverHome() {
               {o.helpers > 0 ? <Tag label={`搬運工 × ${o.helpers}（平台加派）`} tone="warn" /> : null}
             </View>
             <RouteBlock pickup={o.pickup} drop={o.drop} />
-            {o.cargo.hint ? <Tiny>{o.cargo.hint}</Tiny> : null}
+            {o.cargo.hint ? <Tiny>貨物類型提示（系統）：{o.cargo.hint}</Tiny> : null}
             {o.note ? <Tiny>備註：{o.note}</Tiny> : null}
             <CargoPhoto url={o.cargoPhotoUrl} />
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -93,7 +93,7 @@ export default function DriverHome() {
               <Stat label="今日收入" value={formatNTD(earnings?.today ?? 0)} />
               <Stat label="車輛" value={session?.vehicle ? `${session.vehicle.plate}` : '未設定'} small />
             </View>
-            {session?.verification === 'pending' ? <Tiny>帳號審核中：管理員驗證前仍可測試接單。</Tiny> : null}
+            {session?.onboardingStatus !== 'approved' ? <Tiny>資格審核尚未通過，無法上線；請到「帳戶 → 查看資格申請資料」完成申請。</Tiny> : null}
             {session?.vehicle && !session.vehicle.hasTailLift ? <Tiny>你的車輛設定為「無升降尾門」，需尾門的訂單不會派給你（可在「帳戶」開啟）。</Tiny> : null}
           </Sheet>
         </>

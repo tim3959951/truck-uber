@@ -46,8 +46,8 @@ export const MOCK_CUSTOMER: Customer = {
 };
 
 export const MOCK_HISTORY: HistoryItem[] = [
-  { id: 'TK-2411', orderNo: 'TK-2411', date: '9/8', from: '觀音工業區', to: '員林 建材行', pallets: 12, cargo: '建材 / 磚水泥', total: 6980, driverAmount: 5933, status: 'completed' },
-  { id: 'TK-2398', orderNo: 'TK-2398', date: '9/5', from: '觀音工業區', to: '新市 科學園區', pallets: 6, cargo: '機械設備', total: 9740, driverAmount: 8279, status: 'completed' },
+  { id: 'TK-2411', orderNo: 'TK-2411', date: '9/8', from: '觀音工業區', to: '員林 建材行', fromLoc: LOCATIONS[0], toLoc: LOCATIONS[4], pallets: 12, cargo: '建材 / 磚水泥', total: 6980, driverAmount: 5933, status: 'completed' },
+  { id: 'TK-2398', orderNo: 'TK-2398', date: '9/5', from: '觀音工業區', to: '新市 科學園區', fromLoc: LOCATIONS[0], toLoc: LOCATIONS[6], pallets: 6, cargo: '機械設備', total: 9740, driverAmount: 8279, status: 'completed' },
 ];
 
 /** placeholder until the customer picks a place; map falls back to the middle of Taiwan */

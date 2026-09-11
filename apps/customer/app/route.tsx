@@ -39,6 +39,8 @@ export default function RouteScreen() {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<GeocodeHit[]>([]);
   const [searching, setSearching] = useState(false);
+  /** which field currently has keyboard focus — only that one shows the query text instead of the chosen place */
+  const [focused, setFocused] = useState<End | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputs = { pickup: useRef<TextInput>(null), drop: useRef<TextInput>(null) };
 
@@ -113,15 +115,17 @@ export default function RouteScreen() {
           <Tiny>{label}</Tiny>
           <TextInput
             ref={inputs[end]}
-            value={on ? q : isSet(l) ? l.name : ''}
+            value={on && focused === end ? q : isSet(l) ? l.name : ''}
             onFocus={() => {
+              setFocused(end);
               if (editing !== end) setEditing(end);
             }}
+            onBlur={() => setFocused((f) => (f === end ? null : f))}
             onChangeText={(t) => {
               if (editing !== end) setEditing(end);
               setQ(t);
             }}
-            placeholder={on ? (end === 'pickup' ? '輸入地址或公司名稱…' : '要送到哪裡？') : l.name}
+            placeholder={end === 'pickup' ? '輸入地址或公司名稱…' : '要送到哪裡？'}
             placeholderTextColor={on ? colors.ink3 : colors.ink3}
             style={s.fieldText}
             returnKeyType="search"
@@ -138,6 +142,7 @@ export default function RouteScreen() {
   };
 
   const showSuggestions = q.trim().length < 2;
+  // typing into a field that already has a place: the query starts empty so the old name is not carried into the search
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top + 8 }}>

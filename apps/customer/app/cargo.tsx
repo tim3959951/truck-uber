@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, CARGO_TYPES, H1, RoundButton, Stepper, Tiny, classById, colors, formatNTD, pickCargoPhoto, showAlert, takeCargoPhoto } from '@truck/shared';
@@ -19,6 +20,7 @@ export default function Cargo() {
   const insets = useSafeAreaInsets();
   const { pallets, cargoId, note, pricing, needTailLift, helpers, cargoPhotoUri, loadMode, weightT, quantityDesc, classId, classes, set, setCargo } = useStore();
   const cls = classById(classes, classId);
+  const [weightText, setWeightText] = useState(weightT == null ? '' : String(weightT));
   const maxPallets = Math.max(...classes.filter((k) => k.active).map((k) => k.maxPallets), 1);
 
   const snap = async (fn: () => Promise<string | null>) => {
@@ -76,9 +78,12 @@ export default function Cargo() {
         <View style={{ gap: 6 }}>
           <Text style={s.label}>總重量（噸，選填）</Text>
           <TextInput
-            value={weightT == null ? '' : String(weightT)}
+            value={weightText}
             onChangeText={(t) => {
-              const v = parseFloat(t.replace(/[^0-9.]/g, ''));
+              // keep the raw text (so "5." survives) and parse separately
+              const clean = t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+              setWeightText(clean);
+              const v = parseFloat(clean);
               setCargo({ weightT: Number.isFinite(v) && v > 0 ? v : null });
             }}
             keyboardType="decimal-pad"

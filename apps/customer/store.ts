@@ -88,7 +88,7 @@ type State = {
   requestTruck: () => Promise<Order>;
   pay: () => Promise<Order>;
   cancel: (reason?: string) => Promise<void>;
-  submitRating: (tags: string[]) => Promise<void>;
+  submitRating: (tags: string[], comment?: string) => Promise<void>;
   loadHistory: () => Promise<void>;
   applyOrder: (o: Order | null) => void;
 };
@@ -249,10 +249,10 @@ export const useStore = create<State>((set, get) => ({
     stopWatching();
     set({ order: null, driverLoc: null });
   },
-  async submitRating(tags) {
+  async submitRating(tags, comment) {
     const o = get().order;
     if (!o) return;
-    await backend.rateOrder(o.id, get().rating, tags);
+    await backend.rateOrder(o.id, get().rating, tags, comment);
     stopWatching();
     set({ order: null, driverLoc: null, rating: 0 });
     get().loadHistory().catch(() => {});

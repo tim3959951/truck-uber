@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, CARGO_TYPES, MapView, Chip, H2, RoundButton, Row, Sheet, Toast, colors, isSet, recentPlaces } from '@truck/shared';
+import { Button, MapView, H2, RoundButton, Row, Sheet, Toast, colors, isSet, recentPlaces } from '@truck/shared';
 import { useStore } from '../../store';
 
 export default function Home() {
@@ -84,19 +84,6 @@ export default function Home() {
           </View>
         ) : null}
 
-        <H2>常用出貨</H2>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {CARGO_TYPES.slice(0, 4).map((c) => (
-            <Chip
-              key={c.id}
-              label={c.name}
-              onPress={() => {
-                set({ cargoId: c.id });
-                router.push('/route');
-              }}
-            />
-          ))}
-        </View>
       </Sheet>
     </View>
   );

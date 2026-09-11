@@ -384,7 +384,7 @@ export function createSupabaseBackend(): Backend {
     payOrderSandbox: (orderId) => rpcOrder('pay_order_sandbox', { p_order: orderId }),
     pollOrder: (orderId) => rpcOrder('poll_order', { p_order: orderId }),
     cancelOrder: (orderId, reason) => rpcOrder('cancel_order', { p_order: orderId, p_reason: reason ?? null }),
-    rateOrder: (orderId, stars, tags) => rpcOrder('rate_order', { p_order: orderId, p_stars: stars, p_tags: tags }),
+    rateOrder: (orderId, stars, tags, comment) => rpcOrder('rate_order', { p_order: orderId, p_stars: stars, p_tags: tags, p_comment: comment ?? '' }),
 
     /* ---- contract ---- */
     async getContract(orderId) {
