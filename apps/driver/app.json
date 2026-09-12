@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "大車司機",
+    "name": "Pallo 承運人",
     "slug": "truck-driver",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,8 +33,8 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
       "output": "single",
-      "name": "大車司機",
-      "shortName": "大車司機",
+      "name": "Pallo 承運人",
+      "shortName": "Pallo 承運人",
       "lang": "zh-Hant",
       "themeColor": "#000000",
       "backgroundColor": "#ffffff",
@@ -46,7 +46,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "大車叫車需要您的位置來回報車輛位置給客戶"
+          "locationWhenInUsePermission": "Pallo 需要您的位置來回報車輛位置給客戶"
         }
       ],
       [

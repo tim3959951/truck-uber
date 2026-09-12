@@ -19,7 +19,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!authReady) return;
     const inAuth = segments[0] === '(auth)';
-    if (!session && !inAuth) router.replace('/(auth)/login');
+    if (!session && !inAuth && segments[0] !== 'terms') router.replace('/(auth)/login');
     if (session && inAuth) router.replace('/');
     // carriers must pass eligibility review before they see the dispatch screen
     if (session && !inAuth && session.role === 'driver' && (session.onboardingStatus ?? 'draft') !== 'approved' && segments[0] !== 'onboarding' && segments[0] !== 'terms') router.replace('/onboarding');

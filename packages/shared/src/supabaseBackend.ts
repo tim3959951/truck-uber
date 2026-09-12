@@ -133,6 +133,13 @@ export function mapOrderRow(r: OrderRow): Order {
   };
 }
 
+/** where a confirmation e-mail should land: this app's own base URL (…/customer/ or …/driver/) */
+function appBaseUrl(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const m = window.location.pathname.match(/^(.*\/(customer|driver)\/)/);
+  return window.location.origin + (m ? m[1] : '/');
+}
+
 function mapOnboarding(d: any): Onboarding {
   return {
     status: d.onboarding_status ?? 'draft',
@@ -294,7 +301,9 @@ export function createSupabaseBackend(): Backend {
             make_model: input.makeModel ?? '',
             has_tail_lift: !!input.hasTailLift,
             class_id: input.classId ?? '17t',
+            terms_version: input.termsVersion ?? '',
           },
+          emailRedirectTo: appBaseUrl(),
         },
       });
       if (error) throw new Error(error.message);

@@ -5,5 +5,5 @@ import { backend, useStore } from '../../store';
 export default function SignUp() {
   const router = useRouter();
   const { signIn, signUp } = useStore();
-  return <AuthForm role="customer" mode="signup" backendKind={backend.kind} onLogin={signIn} onSignUp={signUp} onSwitch={() => router.replace('/(auth)/login')} />;
+  return <AuthForm role="customer" mode="signup" backendKind={backend.kind} onLogin={signIn} onSignUp={signUp} onSwitch={() => router.replace('/(auth)/login')} onOpenTerms={(k) => router.push(`/terms?kind=${k}`)} />;
 }

@@ -3,6 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showAlert } from './alert';
 import { DEFAULT_CLASSES } from './data';
+import { PLATFORM_TERMS_VERSION } from './platformTerms';
 import { colors } from './theme';
 import type { SignUpInput } from './types';
 import { Button, H1, Tiny } from './ui';
@@ -14,9 +15,11 @@ type Props = {
   onSignUp: (input: SignUpInput) => Promise<boolean>;
   onSwitch: () => void;
   backendKind: 'supabase' | 'mock';
+  /** open the terms page (platform terms or contract template) */
+  onOpenTerms?: (kind: 'platform' | 'contract') => void;
 };
 
-export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind }: Props) {
+export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind, onOpenTerms }: Props) {
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,20 +30,22 @@ export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind 
   const [makeModel, setMakeModel] = useState('');
   const [hasTailLift, setHasTailLift] = useState(false);
   const [classId, setClassId] = useState('17t');
+  const [agree, setAgree] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const isDriver = role === 'driver';
-  const title = mode === 'login' ? (isDriver ? '司機登入' : '登入') : isDriver ? '註冊成為大車司機' : '建立帳號';
+  const title = mode === 'login' ? (isDriver ? '承運人登入' : '登入') : isDriver ? '註冊成為 Pallo 承運人' : '建立帳號';
 
   const submit = async () => {
     if (!email || !password) return showAlert('請輸入 Email 與密碼');
     if (mode === 'signup' && (!name || !phone)) return showAlert('請輸入姓名與電話');
     if (mode === 'signup' && isDriver && !plate) return showAlert('請輸入車牌號碼');
+    if (mode === 'signup' && !agree) return showAlert('請先閱讀並同意平台服務條款');
     setBusy(true);
     try {
       if (mode === 'login') await onLogin(email, password);
       else {
-        const ok = await onSignUp({ email, password, role, name, phone, company, plate, makeModel, hasTailLift, classId });
+        const ok = await onSignUp({ email, password, role, name, phone, company, plate, makeModel, hasTailLift, classId, termsVersion: PLATFORM_TERMS_VERSION });
         if (!ok) showAlert('請確認 Email', '我們已寄出確認信，點擊信中連結後再回來登入。');
       }
     } catch (e) {
@@ -53,7 +58,7 @@ export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: '#fff' }}>
       <ScrollView contentContainerStyle={{ padding: 24, paddingTop: insets.top + 40, gap: 14, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
-        <Text style={s.brand}>大車叫車{isDriver ? ' · 司機端' : ''}</Text>
+        <Text style={s.brand}>Pallo{isDriver ? ' · 承運人端' : ''}</Text>
         <H1>{title}</H1>
         {backendKind === 'mock' ? <Tiny>目前是離線示範模式（未設定 Supabase），任何帳密都能登入。</Tiny> : null}
 
@@ -93,6 +98,15 @@ export function AuthForm({ role, mode, onLogin, onSignUp, onSwitch, backendKind 
             ) : (
               <Field label="公司 / 工廠名稱（選填）" value={company} onChangeText={setCompany} placeholder="大明園藝資材行" />
             )}
+            <Pressable onPress={() => setAgree((v) => !v)} style={s.check}>
+              <View style={[s.checkBox, agree && s.checkBoxOn]}>{agree ? <Text style={{ color: '#fff', fontWeight: '800' }}>✓</Text> : null}</View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '700' }}>我已閱讀並同意平台服務條款（v{PLATFORM_TERMS_VERSION}）</Text>
+                <Tiny>Pallo 是資訊媒合平台，不承運貨物；運送契約於接單時在託運人與承運人之間成立。</Tiny>
+              </View>
+            </Pressable>
+            <Pressable onPress={() => onOpenTerms?.('platform')}><Text style={s.link}>閱讀平台服務條款全文</Text></Pressable>
+            <Pressable onPress={() => onOpenTerms?.('contract')}><Text style={s.link}>閱讀運送契約條款範本</Text></Pressable>
           </>
         ) : null}
 
@@ -120,6 +134,7 @@ const s = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '700', color: colors.ink2, letterSpacing: 0.5 },
   input: { backgroundColor: colors.fill, borderRadius: 10, padding: 14, fontSize: 15, fontWeight: '600' },
   check: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 },
+  link: { color: colors.ink2, textDecorationLine: 'underline', fontSize: 13 },
   chip: { width: '47%', flexGrow: 1, borderWidth: 1.5, borderColor: colors.line, borderRadius: 12, padding: 10, gap: 2 },
   chipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
   checkBox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },

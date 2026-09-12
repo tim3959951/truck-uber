@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "大車叫車",
+    "name": "Pallo",
     "slug": "truck-customer",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -33,8 +33,8 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
       "output": "single",
-      "name": "大車叫車",
-      "shortName": "大車叫車",
+      "name": "Pallo",
+      "shortName": "Pallo",
       "lang": "zh-Hant",
       "themeColor": "#000000",
       "backgroundColor": "#ffffff",
@@ -46,7 +46,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "大車叫車需要您的位置來設定裝貨地點"
+          "locationWhenInUsePermission": "Pallo 需要您的位置來設定裝貨地點"
         }
       ],
       [
@@ -58,8 +58,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "大車叫車需要相機拍攝現場貨物照片，作為司機接單參考與出貨證明。",
-          "photosPermission": "大車叫車需要讀取相簿以選擇現場貨物照片。"
+          "cameraPermission": "Pallo 需要相機拍攝現場貨物照片，作為司機接單參考與出貨證明。",
+          "photosPermission": "Pallo 需要讀取相簿以選擇現場貨物照片。"
         }
       ]
     ],

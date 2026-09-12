@@ -25,9 +25,9 @@ for app in customer driver; do
 done
 mkdir -p site/customer/admin && cp admin/index.html site/customer/admin/index.html
 cat > site/index.html <<HTML
-<!doctype html><meta charset="utf-8"><title>大車叫車</title>
+<!doctype html><meta charset="utf-8"><title>Pallo · 維斯托</title>
 <body style="font-family:system-ui;padding:32px;line-height:1.8">
-<h1>大車叫車</h1>
+<h1>Pallo</h1><p>維斯托 VSTREL · 大貨車媒合平台</p>
 <p><a href="$BASE/customer/">客戶端（叫車）</a></p>
 <p><a href="$BASE/driver/">承運人端（接單）</a></p>
 <p><a href="$BASE/customer/admin/">後台</a></p>

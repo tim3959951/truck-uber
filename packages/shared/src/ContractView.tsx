@@ -74,7 +74,7 @@ export function ContractView({ backend, orderId, me, onBack }: { backend: Backen
             <Tag label="已成立" tone="go" />
           </View>
           <Tiny>成立時間 {fmt(c.formedAt)} · 條款版本 v{c.termsVersion} · 訂單 {o.order_no}</Tiny>
-          <Tiny>本契約由託運人與承運人直接成立；平台僅提供媒合、估價、付款工具與運送追蹤，非契約當事人。</Tiny>
+          <Tiny>本契約於承運人接單時自動成立，雙方無需另行同意；託運人下單、承運人接單即為同意。Pallo 僅提供媒合、參考價、付款工具與運送追蹤，非契約當事人。</Tiny>
         </View>
 
         <H2>當事人</H2>
@@ -103,13 +103,13 @@ export function ContractView({ backend, orderId, me, onBack }: { backend: Backen
         <Tiny>內容雜湊 {c.contentHash.slice(0, 16)}… — 成立後任何一方（含平台）都無法修改本契約內容。</Tiny>
 
         <View style={s.card}>
-          <Text style={{ fontWeight: '700' }}>確認紀錄</Text>
-          <Tiny>託運人：{c.customerAckAt ? '已閱讀 ' + fmt(c.customerAckAt) : '尚未確認'}</Tiny>
-          <Tiny>承運人：{c.carrierAckAt ? '已閱讀 ' + fmt(c.carrierAckAt) : '尚未確認'}</Tiny>
+          <Text style={{ fontWeight: '700' }}>閱讀紀錄（僅作紀錄，不影響契約效力）</Text>
+          <Tiny>託運人：{c.customerAckAt ? '已閱讀 ' + fmt(c.customerAckAt) : '尚未開啟'}</Tiny>
+          <Tiny>承運人：{c.carrierAckAt ? '已閱讀 ' + fmt(c.carrierAckAt) : '尚未開啟'}</Tiny>
         </View>
       </ScrollView>
       <View style={[s.footer, { paddingBottom: insets.bottom + 16 }]}>
-        {myAck ? <Button title={`你已於 ${fmt(myAck)} 確認閱讀`} disabled onPress={() => {}} /> : <Button title="我已閱讀並了解本契約" onPress={ack} loading={busy} />}
+        {myAck ? <Button title={`已於 ${fmt(myAck)} 收到並閱讀`} disabled onPress={() => {}} /> : <Button title="我已收到並閱讀本契約" onPress={ack} loading={busy} />}
       </View>
     </View>
   );

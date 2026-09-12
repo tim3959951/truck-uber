@@ -255,6 +255,8 @@ export type SignUpInput = {
   makeModel?: string;
   hasTailLift?: boolean;
   classId?: string;
+  /** platform terms version the user ticked at signup */
+  termsVersion?: string;
 };
 
 export type DriverLocation = { lat: number; lng: number; heading?: number; speed?: number };

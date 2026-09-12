@@ -155,7 +155,7 @@ do $$ declare c public.contracts; o public.orders; begin
   assert c.carrier_type = 'driver' and c.carrier_driver_id = public.my_driver_id(), 'driver is the carrier (no operator)';
   assert c.content->'order'->>'order_no' = (pg_temp.o((select id from t))).order_no, 'order snapshot';
   assert c.content->'carrier'->'vehicle'->>'plate' = 'KEA-5177', 'vehicle snapshot';
-  assert c.terms_version = 2 and length(c.terms_text) > 500, 'terms copied (latest version)';
+  assert c.terms_version = 3 and length(c.terms_text) > 500, 'terms copied (latest version)';
   assert c.content_hash = encode(sha256(convert_to(c.content::text || c.terms_text, 'UTF8')), 'hex'), 'hash matches';
   o := pg_temp.o((select id from t));
   assert o.carrier_type = 'driver' and o.carrier_id = public.my_driver_id() and o.dropoff_at is not null, 'order carries carrier + eta';

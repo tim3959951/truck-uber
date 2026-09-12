@@ -22,7 +22,7 @@ export default function RootLayout() {
     if (!authReady) return;
     const inAuth = segments[0] === '(auth)';
     if (!session) {
-      if (!inAuth) router.replace('/(auth)/login');
+      if (!inAuth && segments[0] !== 'terms') router.replace('/(auth)/login');
       return;
     }
     if (inAuth) {
