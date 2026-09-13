@@ -168,6 +168,22 @@ function EmailCodeStep({ email, backend, onVerified, onBack }: { email: string; 
     const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [cooldown]);
+  // the user may click the link in the e-mail instead of typing the code: the session then lands in storage → pick it up
+  useEffect(() => {
+    let done = false;
+    const t = setInterval(async () => {
+      if (done) return;
+      const s = await backend.getSession().catch(() => null);
+      if (s && !done) {
+        done = true;
+        clearInterval(t);
+        setState('ok');
+        setMsg('Email 驗證成功');
+        onVerified().catch(() => {});
+      }
+    }, 4000);
+    return () => { done = true; clearInterval(t); };
+  }, []);
 
   const check = async (c: string) => {
     setState('checking');
@@ -203,14 +219,13 @@ function EmailCodeStep({ email, backend, onVerified, onBack }: { email: string; 
     <View style={{ flex: 1, backgroundColor: '#fff', padding: 24, paddingTop: insets.top + 40, gap: 14 }}>
       <Text style={s.brand}>Pallo</Text>
       <H1>驗證 Email</H1>
-      <Text style={{ fontSize: 14, lineHeight: 22 }}>驗證信已寄到 <Text style={{ fontWeight: '800' }}>{email}</Text>，請輸入信中的 6 位數驗證碼。找不到的話看一下垃圾郵件。</Text>
+      <Text style={{ fontSize: 14, lineHeight: 22 }}>驗證信已寄到 <Text style={{ fontWeight: '800' }}>{email}</Text>。輸入信中的 6 位數驗證碼，或直接點信裡的「確認」連結再回到這個畫面。找不到的話看一下垃圾郵件。</Text>
       <CodeInput value={code} onChangeText={onChange} state={state === 'ok' ? 'ok' : state === 'bad' ? 'bad' : code.length === 6 ? 'idle' : 'pending'} editable={state !== 'ok' && state !== 'checking'} />
       {msg ? <Text style={{ color: state === 'ok' ? colors.go : state === 'bad' ? colors.bad : colors.ink2, fontWeight: '700' }}>{msg}</Text> : null}
       {state === 'checking' ? <Tiny>檢查中…</Tiny> : null}
       {state !== 'ok' ? (
         <>
           <Button title={cooldown > 0 ? `重新寄送驗證碼（${cooldown} 秒後）` : '重新寄送驗證碼'} variant="secondary" disabled={cooldown > 0} onPress={resend} />
-          <Tiny>也可以直接點信裡的連結完成驗證，再回來登入。</Tiny>
           <Pressable onPress={onBack} style={{ alignItems: 'center', padding: 8 }}>
             <Text style={{ fontWeight: '700', color: colors.ink2 }}>Email 打錯了？回上一步</Text>
           </Pressable>
