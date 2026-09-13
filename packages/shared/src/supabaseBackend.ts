@@ -140,6 +140,27 @@ function appBaseUrl(): string | undefined {
   return window.location.origin + (m ? m[1] : '/');
 }
 
+/** 0912-345-678 / 0912345678 / +886912345678 → +886912345678 (Supabase wants E.164 without the leading 0) */
+export function toE164(phone: string): string {
+  const digits = phone.replace(/[^0-9+]/g, '');
+  if (digits.startsWith('+')) return digits;
+  if (digits.startsWith('886')) return '+' + digits;
+  if (digits.startsWith('0')) return '+886' + digits.slice(1);
+  return '+886' + digits;
+}
+
+function friendlyAuthError(msg: string): string {
+  const m = msg.toLowerCase();
+  if (m.includes('token has expired') || m.includes('otp_expired')) return '驗證碼已過期，請重新寄送';
+  if (m.includes('invalid') && (m.includes('otp') || m.includes('token'))) return '驗證碼不正確';
+  if (m.includes('rate limit') || m.includes('security purposes') || m.includes('too many')) return '寄送太頻繁，請稍後再試';
+  if (m.includes('sms') && m.includes('provider')) return '簡訊服務尚未開通，請聯絡客服';
+  if (m.includes('already registered') || m.includes('already exists')) return '這個 Email 或手機已經註冊過';
+  if (m.includes('invalid login credentials')) return 'Email 或密碼錯誤';
+  if (m.includes('email not confirmed')) return 'Email 尚未驗證，請先輸入信中的驗證碼';
+  return msg;
+}
+
 function mapOnboarding(d: any): Onboarding {
   return {
     status: d.onboarding_status ?? 'draft',
@@ -148,6 +169,7 @@ function mapOnboarding(d: any): Onboarding {
     licenseClass: d.license_class ?? undefined,
     licenseExpiresOn: d.license_expires_on ?? undefined,
     businessType: d.business_type ?? undefined,
+    invoiceBy: d.invoice_by ?? undefined,
     operatorName: d.operator_name ?? '',
     operatorTaxId: d.operator_tax_id ?? '',
     acceptExternalLoads: d.accept_external_loads !== false,
@@ -216,19 +238,24 @@ export function createSupabaseBackend(): Backend {
       cachedDriverId = undefined;
       return null;
     }
-    const { data: p, error } = await sb.from('profiles').select('id,role,name,phone,company').eq('id', user.id).maybeSingle();
+    const { data: p, error } = await sb.from('profiles').select('id,role,name,phone,company,phone_verified_at').eq('id', user.id).maybeSingle();
     if (error || !p) {
       // profile row is created by a DB trigger a moment after sign-up; retry once
       await new Promise((r) => setTimeout(r, 600));
-      const again = await sb.from('profiles').select('id,role,name,phone,company').eq('id', user.id).maybeSingle();
+      const again = await sb.from('profiles').select('id,role,name,phone,company,phone_verified_at').eq('id', user.id).maybeSingle();
       if (!again.data) return null;
       return finishSession(user.id, user.email ?? '', again.data);
     }
     return finishSession(user.id, user.email ?? '', p);
   }
 
-  async function finishSession(userId: string, email: string, p: { role: Session['role']; name: string; phone: string; company: string }): Promise<Session> {
-    const s: Session = { userId, email, role: p.role, name: p.name, phone: p.phone, company: p.company };
+  async function finishSession(userId: string, email: string, p: { role: Session['role']; name: string; phone: string; company: string; phone_verified_at?: string | null }): Promise<Session> {
+    const { data: cfg } = await sb.from('pricing_config').select('require_phone_verification').eq('id', 1).maybeSingle();
+    const s: Session = {
+      userId, email, role: p.role, name: p.name, phone: p.phone, company: p.company,
+      phoneVerified: !!p.phone_verified_at,
+      phoneVerificationRequired: cfg?.require_phone_verification === true,
+    };
     if (p.role === 'driver') {
       const { data: d } = await sb.from('drivers').select('id,online,rating,trips_count,verification_status,onboarding_status,review_note').eq('profile_id', userId).maybeSingle();
       if (d) {
@@ -282,7 +309,7 @@ export function createSupabaseBackend(): Backend {
     },
     async signIn(email, password) {
       const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(friendlyAuthError(error.message));
       const s = await buildSession();
       if (!s) throw new Error('找不到使用者資料');
       return s;
@@ -309,6 +336,30 @@ export function createSupabaseBackend(): Backend {
       if (error) throw new Error(error.message);
       if (!data.session) return null; // e-mail confirmation required by project settings
       return buildSession();
+    },
+    async verifyEmailCode(email, code) {
+      const { error } = await sb.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'signup' });
+      if (error) throw new Error(friendlyAuthError(error.message));
+      const s = await buildSession();
+      if (!s) throw new Error('找不到使用者資料');
+      return s;
+    },
+    async resendEmailCode(email) {
+      const { error } = await sb.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: appBaseUrl() } });
+      if (error) throw new Error(friendlyAuthError(error.message));
+    },
+    async startPhoneVerification(phone) {
+      const { error } = await sb.auth.updateUser({ phone: toE164(phone) });
+      if (error) throw new Error(friendlyAuthError(error.message));
+    },
+    async verifyPhoneCode(phone, code) {
+      const { error } = await sb.auth.verifyOtp({ phone: toE164(phone), token: code.trim(), type: 'phone_change' });
+      if (error) throw new Error(friendlyAuthError(error.message));
+      const { error: e2 } = await sb.rpc('sync_phone_verified');
+      if (e2) throw new Error(e2.message);
+      const s = await buildSession();
+      if (!s) throw new Error('找不到使用者資料');
+      return s;
     },
     async signOut() {
       channels.forEach((c) => sb.removeChannel(c));
@@ -352,6 +403,7 @@ export function createSupabaseBackend(): Backend {
         maxPallets: 16,
         tailLiftFee: num(data.tail_lift_fee, 1000),
         helperFee: num(data.helper_fee, 3000),
+        requirePhoneVerification: data.require_phone_verification === true,
       };
     },
 
@@ -522,6 +574,7 @@ export function createSupabaseBackend(): Backend {
       if (patch.licenseClass !== undefined) row.license_class = patch.licenseClass ?? null;
       if (patch.licenseExpiresOn !== undefined) row.license_expires_on = patch.licenseExpiresOn || null;
       if (patch.businessType !== undefined) row.business_type = patch.businessType ?? null;
+      if (patch.invoiceBy !== undefined) row.invoice_by = patch.invoiceBy ?? null;
       if (patch.operatorName !== undefined) row.operator_name = patch.operatorName;
       if (patch.operatorTaxId !== undefined) row.operator_tax_id = patch.operatorTaxId;
       if (patch.acceptExternalLoads !== undefined) row.accept_external_loads = patch.acceptExternalLoads;

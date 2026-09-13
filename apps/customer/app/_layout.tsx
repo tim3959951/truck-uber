@@ -8,7 +8,7 @@ import { backend, useStore } from '../store';
 configureForegroundNotifications();
 
 export default function RootLayout() {
-  const { authReady, session, init } = useStore();
+  const { authReady, session, init, phoneSkipped } = useStore();
   const status = useStore((s) => s.order?.status);
   const segments = useSegments();
   const router = useRouter();
@@ -30,12 +30,22 @@ export default function RootLayout() {
       return;
     }
     const screen = segments[0];
+    if (screen === 'terms') return;
+    // phone must be verified (0013); 稍後再驗證 is allowed while the platform doesn't require it yet
+    if (session.role !== 'admin' && !session.phoneVerified && !phoneSkipped) {
+      if (screen !== 'verify') router.replace('/verify');
+      return;
+    }
+    if (screen === 'verify') {
+      router.replace('/');
+      return;
+    }
     // while an order is live the customer stays on its screen (checkout → trip → receipt); the contract page is always allowed
-    if (screen === 'contract' || screen === 'terms') return;
+    if (screen === 'contract') return;
     if (status === 'created' && screen !== 'checkout') router.replace('/checkout');
     else if (status && ['searching', 'offered', 'accepted', 'arrived', 'in_transit', 'delivered'].includes(status) && screen !== 'trip') router.replace('/trip');
     else if (status === 'completed' && screen !== 'receipt') router.replace('/receipt');
-  }, [authReady, session, status, segments[0]]);
+  }, [authReady, session, status, segments[0], phoneSkipped]);
 
   if (!authReady) {
     return (
@@ -64,6 +74,7 @@ export default function RootLayout() {
         <Stack.Screen name="receipt" options={{ gestureEnabled: false }} />
         <Stack.Screen name="contract" />
         <Stack.Screen name="terms" />
+        <Stack.Screen name="verify" options={{ gestureEnabled: false }} />
       </Stack>
     </>
   );

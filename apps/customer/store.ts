@@ -83,6 +83,12 @@ type State = {
   init: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<boolean>;
+  /** adopt the session that now exists (after the e-mail code was accepted) and load data */
+  adoptSession: () => Promise<void>;
+  /** re-read profile (e.g. after phone verification) */
+  refreshSession: () => Promise<void>;
+  /** user chose 稍後再驗證 on the phone screen (only allowed while verification is not required) */
+  phoneSkipped: boolean;
   signOut: () => Promise<void>;
   loadRoute: () => Promise<void>;
   requestTruck: () => Promise<Order>;
@@ -178,10 +184,22 @@ export const useStore = create<State>((set, get) => ({
     await afterLogin();
     return true;
   },
+  phoneSkipped: false,
+  async adoptSession() {
+    const had = get().session;
+    const session = await backend.getSession();
+    if (!session) throw new Error('找不到使用者資料');
+    set({ session });
+    if (!had) await afterLogin();
+  },
+  async refreshSession() {
+    const session = await backend.getSession().catch(() => null);
+    if (session) set({ session });
+  },
   async signOut() {
     stopWatching();
     await backend.signOut();
-    set({ session: null, order: null, driverLoc: null, history: [], route: null });
+    set({ session: null, order: null, driverLoc: null, history: [], route: null, phoneSkipped: false });
   },
 
   async loadRoute() {

@@ -8,7 +8,7 @@ import { backend, useStore } from '../store';
 configureForegroundNotifications();
 
 export default function RootLayout() {
-  const { authReady, session, init } = useStore();
+  const { authReady, session, init, phoneSkipped } = useStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -21,9 +21,19 @@ export default function RootLayout() {
     const inAuth = segments[0] === '(auth)';
     if (!session && !inAuth && segments[0] !== 'terms') router.replace('/(auth)/login');
     if (session && inAuth) router.replace('/');
+    if (!session || inAuth || segments[0] === 'terms') return;
+    // phone must be verified (0013) before anything else; 稍後再驗證 only while the platform doesn't require it
+    if (!session.phoneVerified && !phoneSkipped) {
+      if (segments[0] !== 'verify') router.replace('/verify');
+      return;
+    }
+    if (segments[0] === 'verify') {
+      router.replace('/');
+      return;
+    }
     // carriers must pass eligibility review before they see the dispatch screen
-    if (session && !inAuth && session.role === 'driver' && (session.onboardingStatus ?? 'draft') !== 'approved' && segments[0] !== 'onboarding' && segments[0] !== 'terms') router.replace('/onboarding');
-  }, [authReady, session, segments[0]]);
+    if (session.role === 'driver' && (session.onboardingStatus ?? 'draft') !== 'approved' && segments[0] !== 'onboarding') router.replace('/onboarding');
+  }, [authReady, session, segments[0], phoneSkipped]);
 
   if (!authReady) {
     return (
@@ -47,6 +57,7 @@ export default function RootLayout() {
         <Stack.Screen name="contract" />
         <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
         <Stack.Screen name="terms" />
+        <Stack.Screen name="verify" options={{ gestureEnabled: false }} />
       </Stack>
     </>
   );

@@ -33,6 +33,13 @@ export interface Backend {
   signIn(email: string, password: string): Promise<Session>;
   /** Returns null when the project requires e-mail confirmation first. */
   signUp(input: SignUpInput): Promise<Session | null>;
+  /** 6-digit code from the confirmation e-mail → session (0013 inline e-mail verification) */
+  verifyEmailCode(email: string, code: string): Promise<Session>;
+  resendEmailCode(email: string): Promise<void>;
+  /** sends an SMS OTP to the phone (09xxxxxxxx) of the signed-in user */
+  startPhoneVerification(phone: string): Promise<void>;
+  /** verifies the SMS code, records profiles.phone_verified_at, returns the refreshed session */
+  verifyPhoneCode(phone: string, code: string): Promise<Session>;
   signOut(): Promise<void>;
 
   // ---- config --------------------------------------------------------------

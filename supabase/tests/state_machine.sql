@@ -427,9 +427,23 @@ do $$ declare d public.drivers; begin
   -- can fill in own application
   update public.drivers set license_class = '大貨車', license_expires_on = current_date + 365, business_type = 'affiliated',
          operator_name = '大同貨運行', operator_tax_id = '12345678', service_areas = array['桃園市', '新竹縣'],
+         invoice_by = 'operator',
          bank_code = '812', bank_account_no = '0001234567890', bank_account_name = '林小華',
          declaration_accepted_at = now(), terms_accepted_at = now(), terms_version = 1
    where profile_id = auth.uid();
+  -- 0013: 受僱 is gone; 靠行 must say who issues the invoice
+  begin
+    update public.drivers set business_type = 'employee' where profile_id = auth.uid();
+    raise exception 'employee should be rejected';
+  exception when check_violation then null; end;
+  update public.drivers set invoice_by = null where profile_id = auth.uid();
+  begin
+    perform public.submit_onboarding();
+    raise exception 'should ask for invoice_by';
+  exception when others then
+    if sqlerrm not like '%發票%' then raise; end if;
+  end;
+  update public.drivers set invoice_by = 'operator' where profile_id = auth.uid();
   -- submit without documents → lists what is missing
   begin
     perform public.submit_onboarding();
@@ -473,6 +487,48 @@ do $$ begin
   update public.drivers set verification_status = 'verified' where profile_id = '22222222-2222-2222-2222-222222222222';
   assert (select verification_status from public.drivers where profile_id = '22222222-2222-2222-2222-222222222222') = 'verified', 'admin verified driver';
 end $$;
+-- 0013: phone verification
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ declare p public.profiles; begin
+  begin
+    perform public.sync_phone_verified();
+    raise exception 'unverified phone should fail';
+  exception when others then
+    if sqlerrm not like '%手機%' then raise; end if;
+  end;
+  -- user cannot set the flag himself
+  begin
+    update public.profiles set phone_verified_at = now() where id = auth.uid();
+    raise exception 'self-verify should fail';
+  exception when others then
+    if sqlerrm not like '%phone_verified_at%' and sqlerrm not like '%permission denied%' then raise; end if;
+  end;
+end $$;
+reset role;
+update auth.users set phone = '886912345678', phone_confirmed_at = now() where id = '11111111-1111-1111-1111-111111111111';
+update public.pricing_config set require_phone_verification = true where id = 1;
+set role authenticated;
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ declare p public.profiles; o public.orders; begin
+  -- unverified → cannot order
+  begin
+    o := public.create_order('{"pickup":{"name":"A","lat":25.0,"lng":121.0},"dest":{"name":"B","lat":25.1,"lng":121.0},"pallets":1,"cargo_type":"x","tier":"dedicated","km":12}'::jsonb);
+    raise exception 'unverified customer should not order';
+  exception when others then
+    if sqlerrm not like '%手機驗證%' then raise; end if;
+  end;
+  p := public.sync_phone_verified();
+  assert p.phone = '0912345678' and p.phone_verified_at is not null, 'phone synced: ' || p.phone;
+  -- editing the phone afterwards voids the verification
+  update public.profiles set phone = '0900000000' where id = auth.uid() returning * into p;
+  assert p.phone_verified_at is null, 'changing phone clears verification';
+  p := public.sync_phone_verified();
+  assert p.phone_verified_at is not null, 're-sync';
+end $$;
+reset role;
+update public.pricing_config set require_phone_verification = false where id = 1;
+set role authenticated;
+
 -- a customer cannot promote themselves
 select auth.login('11111111-1111-1111-1111-111111111111');
 do $$ begin

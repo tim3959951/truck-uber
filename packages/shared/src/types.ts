@@ -74,6 +74,8 @@ export type PricingConfig = {
   tailLiftFee: number;
   /** flat per-person per-trip fee for professional loading helpers */
   helperFee: number;
+  /** 0013: phone must be verified before ordering / submitting onboarding */
+  requirePhoneVerification: boolean;
 };
 
 export type Driver = {
@@ -208,10 +210,17 @@ export type Session = {
   /** 0006: carrier eligibility review state */
   onboardingStatus?: OnboardingStatus;
   reviewNote?: string;
+  /** 0013: phone OTP verified (profiles.phone_verified_at) */
+  phoneVerified?: boolean;
+  /** 0013: platform requires a verified phone to order / submit onboarding (pricing_config.require_phone_verification) */
+  phoneVerificationRequired?: boolean;
 };
 
 export type OnboardingStatus = 'draft' | 'submitted' | 'needs_fix' | 'approved' | 'rejected';
-export type BusinessType = 'own_operator' | 'affiliated' | 'employee';
+/** own_operator 自營貨運行（自己開發票）| affiliated 靠行（發票由靠行公司代開或不開）。0013 拿掉「受僱」。 */
+export type BusinessType = 'own_operator' | 'affiliated';
+/** 誰開發票：self 自己開 | operator 靠行公司代開 | none 無法開發票（只能收據） */
+export type InvoiceBy = 'self' | 'operator' | 'none';
 export type DocKind =
   | 'id_front' | 'id_back' | 'license' | 'license_back' | 'vehicle_reg' | 'vehicle_front' | 'vehicle_bed'
   | 'business_proof' | 'affiliation_proof' | 'insurance_compulsory' | 'insurance_liability' | 'insurance_cargo' | 'bank_passbook';
@@ -224,8 +233,10 @@ export type Onboarding = {
   licenseClass?: '大貨車' | '聯結車';
   licenseExpiresOn?: string; // YYYY-MM-DD
   businessType?: BusinessType;
+  invoiceBy?: InvoiceBy;
   operatorName: string;
   operatorTaxId: string;
+  /** kept in the DB, no longer shown in the App (0013) */
   acceptExternalLoads: boolean;
   serviceAreas: string[];
   bankCode: string;

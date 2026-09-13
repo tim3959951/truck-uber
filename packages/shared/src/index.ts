@@ -18,3 +18,4 @@ export * from './AuthForm';
 export * from './ContractView';
 export * from './platformTerms';
 export * from './TermsView';
+export * from './PhoneVerifyView';

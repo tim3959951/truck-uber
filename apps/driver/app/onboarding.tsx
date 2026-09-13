@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Button,
@@ -163,7 +163,7 @@ export default function OnboardingScreen() {
 
         <H2>2. 職業駕照</H2>
         <Chips options={[{ id: '大貨車', label: '職業大貨車' }, { id: '聯結車', label: '職業聯結車' }]} value={ob.licenseClass} onPick={(v) => patch({ licenseClass: v as Onboarding['licenseClass'] })} />
-        <Field label="駕照到期日（西元 年-月-日）" value={ob.licenseExpiresOn ?? ''} onChange={(t) => patch({ licenseExpiresOn: t.replace(/[^0-9-]/g, '') })} placeholder="2029-05-31" />
+        <Field label="駕照到期日（西元 年-月-日）" value={ob.licenseExpiresOn ?? ''} onChange={(t) => patch({ licenseExpiresOn: t.replace(/[^0-9-]/g, '') })} placeholder="西元年-月-日" />
         <Doc kind="license" />
         <Doc kind="license_back" />
 
@@ -178,17 +178,31 @@ export default function OnboardingScreen() {
         <Doc kind="vehicle_bed" />
 
         <H2>5. 營業資格</H2>
-        <Tiny>營業用大貨車必須掛在貨運業者名下；請選你的實際情況並提供證明。</Tiny>
+        <Tiny>營業用大貨車一定掛在某家貨運業者名下。選你的實際情況就好，平台不跟車行合作、運費一律撥到你自己登記的帳戶。</Tiny>
         <Chips
-          options={[{ id: 'own_operator', label: '自營貨運行' }, { id: 'affiliated', label: '靠行' }, { id: 'employee', label: '受僱於貨運公司' }]}
+          options={[{ id: 'own_operator', label: '我自己有貨運行（可以自己開發票）' }, { id: 'affiliated', label: '我是靠行（自己不能開發票）' }]}
           value={ob.businessType}
-          onPick={(v) => patch({ businessType: v as Onboarding['businessType'] })}
+          onPick={(v) => patch({ businessType: v as Onboarding['businessType'], invoiceBy: v === 'own_operator' ? 'self' : ob.invoiceBy === 'self' ? undefined : ob.invoiceBy })}
         />
-        {ob.businessType ? (
+        {ob.businessType === 'own_operator' ? (
           <>
-            <Field label={ob.businessType === 'own_operator' ? '貨運行名稱' : '所屬貨運業者名稱'} value={ob.operatorName} onChange={(t) => patch({ operatorName: t })} placeholder="大同貨運行" />
-            <Field label="統一編號" value={ob.operatorTaxId} onChange={(t) => patch({ operatorTaxId: t.replace(/[^0-9]/g, '') })} placeholder="12345678" keyboardType="numeric" />
-            <Doc kind={ob.businessType === 'affiliated' ? 'affiliation_proof' : 'business_proof'} />
+            <Field label="貨運行名稱（登記名稱）" value={ob.operatorName} onChange={(t) => patch({ operatorName: t })} />
+            <Field label="統一編號" value={ob.operatorTaxId} onChange={(t) => patch({ operatorTaxId: t.replace(/[^0-9]/g, '').slice(0, 8) })} keyboardType="numeric" />
+            <Doc kind="business_proof" />
+          </>
+        ) : null}
+        {ob.businessType === 'affiliated' ? (
+          <>
+            <Field label="靠行的貨運公司名稱" value={ob.operatorName} onChange={(t) => patch({ operatorName: t })} />
+            <Field label="該公司統一編號（知道的話）" value={ob.operatorTaxId} onChange={(t) => patch({ operatorTaxId: t.replace(/[^0-9]/g, '').slice(0, 8) })} keyboardType="numeric" />
+            <Doc kind="affiliation_proof" />
+            <Text style={{ fontWeight: '700' }}>貨主要發票的時候怎麼辦？</Text>
+            <Chips
+              options={[{ id: 'operator', label: '請靠行公司代開發票' }, { id: 'none', label: '沒辦法開發票（只能給收據）' }]}
+              value={ob.invoiceBy}
+              onPick={(v) => patch({ invoiceBy: v as Onboarding['invoiceBy'] })}
+            />
+            <Tiny>很多工廠、建商付款一定要統一發票；能代開的話接得到的單會比較多。代開的費用你跟靠行公司自己談，平台不經手。</Tiny>
           </>
         ) : null}
 
@@ -198,21 +212,15 @@ export default function OnboardingScreen() {
         <Doc kind="insurance_liability" />
         <Doc kind="insurance_cargo" />
 
-        <H2>7. 服務區域與貨源</H2>
+        <H2>7. 可服務區域</H2>
+        <Tiny>貨主的起點在這些縣市時才會通知你（回頭車也看這裡）。</Tiny>
         <Chips options={TW_AREAS.map((a) => ({ id: a, label: a }))} value={ob.serviceAreas} multi onPick={(a) => patch({ serviceAreas: ob.serviceAreas.includes(a) ? ob.serviceAreas.filter((x) => x !== a) : [...ob.serviceAreas, a] })} />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontWeight: '700' }}>承接平台第三方貨源</Text>
-            <Tiny>關閉的話只會收到你自己車行的單（之後開放）。</Tiny>
-          </View>
-          <Switch value={ob.acceptExternalLoads} disabled={locked} onValueChange={(v) => patch({ acceptExternalLoads: v })} trackColor={{ true: colors.go, false: colors.fill2 }} />
-        </View>
 
         <H2>8. 撥款帳戶</H2>
-        <Tiny>運費由金流直接撥到這個帳戶（平台不經手）。審核通過後啟用，之後可修改。</Tiny>
-        <Field label="銀行代碼" value={ob.bankCode} onChange={(t) => patch({ bankCode: t.replace(/[^0-9]/g, '').slice(0, 3) })} placeholder="812" keyboardType="numeric" />
-        <Field label="帳號" value={ob.bankAccountNo} onChange={(t) => patch({ bankAccountNo: t.replace(/[^0-9]/g, '') })} placeholder="0001234567890" keyboardType="numeric" />
-        <Field label="戶名" value={ob.bankAccountName} onChange={(t) => patch({ bankAccountName: t })} placeholder="與本人或所屬業者一致" />
+        <Tiny>運費由金流直接撥到這個帳戶（平台不經手），不管你是自營還是靠行都一樣。送審後要改請聯絡客服。</Tiny>
+        <Field label="銀行代碼（3 碼）" value={ob.bankCode} onChange={(t) => patch({ bankCode: t.replace(/[^0-9]/g, '').slice(0, 3) })} keyboardType="numeric" />
+        <Field label="帳號" value={ob.bankAccountNo} onChange={(t) => patch({ bankAccountNo: t.replace(/[^0-9]/g, '') })} keyboardType="numeric" />
+        <Field label="戶名（本人或貨運行）" value={ob.bankAccountName} onChange={(t) => patch({ bankAccountName: t })} />
         <Doc kind="bank_passbook" />
 
         <H2>9. 聲明與條款</H2>

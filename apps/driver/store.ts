@@ -41,6 +41,9 @@ type State = {
   signOut: () => Promise<void>;
   /** re-read profile/driver row (e.g. after onboarding submit or admin approval) */
   refreshSession: () => Promise<void>;
+  /** adopt the session that now exists (after the e-mail code was accepted) and load data */
+  adoptSession: () => Promise<void>;
+  phoneSkipped: boolean;
   toggleOnline: () => Promise<void>;
   accept: () => Promise<void>;
   decline: () => Promise<void>;
@@ -98,6 +101,14 @@ export const useStore = create<State>((set, get) => ({
     const session = await backend.getSession().catch(() => null);
     if (session) set({ session });
   },
+  phoneSkipped: false,
+  async adoptSession() {
+    const had = get().session;
+    const session = await backend.getSession();
+    if (!session) throw new Error('找不到使用者資料');
+    set({ session, online: false });
+    if (!had) await afterLogin();
+  },
   async signOut() {
     stopGps();
     stopPolling();
@@ -105,7 +116,7 @@ export const useStore = create<State>((set, get) => ({
     unsubOrders = null;
     if (get().online) await backend.setOnline(false).catch(() => {});
     await backend.signOut();
-    set({ session: null, order: null, online: false, earnings: null, history: [] });
+    set({ session: null, order: null, online: false, earnings: null, history: [], phoneSkipped: false });
   },
 
   async toggleOnline() {

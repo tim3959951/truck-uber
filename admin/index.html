@@ -128,10 +128,11 @@ async function render() {
           <td><button class="sm" onclick="events('${o.id}')">事件</button>${['completed', 'cancelled'].includes(o.status) ? '' : `<button class="sm danger" onclick="cancelOrder('${o.id}')">取消</button>`}</td></tr>`) +
         `<div id="events"></div>`;
     } else if (tab === 'review') {
-      const { data: ds, error } = await sb.from('drivers').select('*, profiles(name,phone), vehicles(plate,class_id,make_model,has_tail_lift,verification_status), carrier_documents(*)').order('submitted_at', { ascending: false, nullsFirst: false });
+      const { data: ds, error } = await sb.from('drivers').select('*, profiles(name,phone,phone_verified_at), vehicles(plate,class_id,make_model,has_tail_lift,verification_status), carrier_documents(*)').order('submitted_at', { ascending: false, nullsFirst: false });
       if (error) throw error;
       const ST = { draft: '草稿', submitted: '待審核', needs_fix: '補件中', approved: '已核可', rejected: '未通過' };
-      const BT = { own_operator: '自營貨運行', affiliated: '靠行', employee: '受僱' };
+      const BT = { own_operator: '自營貨運行（自開發票）', affiliated: '靠行' };
+      const IB = { self: '自己開發票', operator: '靠行公司代開發票', none: '無法開發票' };
       const DOCS = { id_front: '身分證正', id_back: '身分證反', license: '職業駕照正', license_back: '職業駕照反', vehicle_reg: '行照', vehicle_front: '車頭', vehicle_bed: '車斗', business_proof: '營業證明', affiliation_proof: '靠行證明', insurance_compulsory: '強制險', insurance_liability: '第三人責任險', insurance_cargo: '貨物險', bank_passbook: '存摺' };
       const order = { submitted: 0, needs_fix: 1, draft: 2, approved: 3, rejected: 4 };
       ds.sort((a, b) => (order[a.onboarding_status] ?? 9) - (order[b.onboarding_status] ?? 9));
@@ -145,14 +146,14 @@ async function render() {
           const v = (d.vehicles || [])[0];
           const docs = d.carrier_documents || [];
           return `<div style="border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0">
-            <div class="row"><b>${esc(d.profiles?.name)}</b> <span class="muted">${esc(d.profiles?.phone)}</span> ${pill(ST[d.onboarding_status] || d.onboarding_status)} ${pill(d.verification_status)}
+            <div class="row"><b>${esc(d.profiles?.name)}</b> <span class="muted">${esc(d.profiles?.phone)}${d.profiles?.phone_verified_at ? ' ✓已驗證' : ' （未驗證）'}</span> ${pill(ST[d.onboarding_status] || d.onboarding_status)} ${pill(d.verification_status)}
               <span style="flex:1"></span>
               <button class="sm" onclick="reviewOnboarding('${d.id}','approved')">核可</button>
               <button class="sm" onclick="reviewOnboarding('${d.id}','needs_fix')">退回補件</button>
               <button class="sm danger" onclick="reviewOnboarding('${d.id}','rejected')">不通過</button></div>
             <div class="muted" style="margin:6px 0">
               駕照：${esc(d.license_class || '—')}（到期 ${esc(d.license_expires_on || '—')}） · 車：${esc(v?.plate || '—')} ${esc(v?.class_id || '')} ${esc(v?.make_model || '')}${v?.has_tail_lift ? ' 尾門' : ''}<br>
-              營業：${esc(BT[d.business_type] || '—')} ${esc(d.operator_name || '')} ${d.operator_tax_id ? '統編 ' + esc(d.operator_tax_id) : ''} · 區域：${esc((d.service_areas || []).join('、') || '—')} · 外部貨源：${d.accept_external_loads ? '是' : '否'}<br>
+              營業：${esc(BT[d.business_type] || '—')} ${esc(d.operator_name || '')} ${d.operator_tax_id ? '統編 ' + esc(d.operator_tax_id) : ''} · 發票：${esc(IB[d.invoice_by] || '—')} · 區域：${esc((d.service_areas || []).join('、') || '—')}<br>
               撥款：${esc(d.bank_code || '—')}-${esc(d.bank_account_no || '—')} ${esc(d.bank_account_name || '')} · 聲明 ${d.declaration_accepted_at ? '✓' : '✗'} 條款 ${d.terms_accepted_at ? '✓' : '✗'} · 送出 ${d.submitted_at ? ts(d.submitted_at) : '—'}${d.review_note ? ' · 備註：' + esc(d.review_note) : ''}
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px">${docs.map((doc) => `<div style="width:150px;font-size:12px">

@@ -13,6 +13,7 @@ export const DEFAULT_PRICING: PricingConfig = {
   maxPallets: 16,
   tailLiftFee: 1000,
   helperFee: 3000,
+  requirePhoneVerification: false,
 };
 
 /** Kept for existing call sites; equals DEFAULT_PRICING. */

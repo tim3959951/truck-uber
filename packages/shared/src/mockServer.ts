@@ -22,7 +22,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
   let session: Session | null = null;
   const history: HistoryItem[] = [...MOCK_HISTORY];
   let mockContract: Contract | null = null;
-  let mockOnboarding: Onboarding = { status: 'approved', reviewNote: '', operatorName: '', operatorTaxId: '', acceptExternalLoads: true, serviceAreas: ['桃園市'], bankCode: '', bankAccountNo: '', bankAccountName: '' };
+  let mockOnboarding: Onboarding = { status: 'approved', reviewNote: '', operatorName: '', operatorTaxId: '', invoiceBy: 'self', acceptExternalLoads: true, serviceAreas: ['桃園市'], bankCode: '', bankAccountNo: '', bankAccountName: '' };
   const mockDocs: CarrierDoc[] = [];
   const earnings: { amount: number; at: number; item: HistoryItem }[] = [];
   const orderListeners = new Map<string, Set<(o: Order) => void>>();
@@ -176,6 +176,19 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
     },
     async signUp(input) {
       session = mockSession(input);
+      authListeners.forEach((l) => l(session));
+      return session;
+    },
+    async verifyEmailCode() {
+      if (!session) session = mockSession();
+      return session;
+    },
+    async resendEmailCode() {},
+    async startPhoneVerification() {},
+    async verifyPhoneCode(phone, code) {
+      if (code !== '123456') throw new Error('驗證碼不正確（示範模式請輸入 123456）');
+      if (!session) session = mockSession();
+      session = { ...session, phone, phoneVerified: true };
       authListeners.forEach((l) => l(session));
       return session;
     },
