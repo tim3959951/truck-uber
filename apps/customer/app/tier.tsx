@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, H2, MapView, RoundButton, Sheet, TIERS, Tag, Tiny, cargoById, classById, colors, formatNTD, recommendClass, tierById, showAlert } from '@truck/shared';
-import { useStore } from '../store';
+import { backend, useStore } from '../store';
 
 export default function Tier() {
   const router = useRouter();
@@ -22,6 +22,22 @@ export default function Tier() {
   const km = route?.km ?? 0;
   const tier = tierById(tierId);
   const q = engine.quote(km, pallets, tier, addons, cls, loadMode);
+
+  // 0017: record the price this customer was shown, so we can later see what was quoted but never ordered.
+  // Server-side throttled to one row per 10 s; failures are swallowed inside the backend.
+  const logged = useRef('');
+  useEffect(() => {
+    if (!route || !q.total) return;
+    const key = `${pickup.name}|${drop.name}|${classId}|${tierId}|${pallets}|${loadMode}`;
+    if (logged.current === key) return;
+    logged.current = key;
+    backend.logQuote({
+      pickup: { name: pickup.name, lat: pickup.lat, lng: pickup.lng },
+      dest: { name: drop.name, lat: drop.lat, lng: drop.lng },
+      km, class_id: classId, load_mode: loadMode, pallets, weight_t: weightT,
+      tier: tierId, need_tail_lift: needTailLift, helpers, price: q.total,
+    });
+  }, [route, classId, tierId, pallets, loadMode, q.total]);
 
   const confirm = async () => {
     try {

@@ -423,6 +423,9 @@ export function createSupabaseBackend(): Backend {
       if (error) throw new Error(error.message);
       return sb.storage.from('cargo-photos').getPublicUrl(path).data.publicUrl;
     },
+    async logQuote(q) {
+      try { await sb.rpc('log_quote', { p: q }); } catch { /* analytics must never block ordering */ }
+    },
     createOrder(input: OrderInput) {
       return rpcOrder('create_order', {
         p: {

@@ -44,6 +44,7 @@
     <button data-tab="profiles">使用者</button>
     <button data-tab="payments">付款</button>
     <button data-tab="earnings">司機收入</button>
+    <button data-tab="quotes">報價分析</button>
     <button data-tab="config">計價設定</button>
   </nav>
   <span style="flex:1"></span>
@@ -206,6 +207,24 @@ async function render() {
       $('#main').innerHTML = `<div class="row"><b>司機收入帳本</b><span class="muted">pending ${ntd(sum('pending'))} · available ${ntd(sum('available'))} · paid ${ntd(sum('paid'))}</span></div>` +
         table(['司機', '單號', '運費', '平台費', '司機實收', '狀態', '建立', '可撥款日', '已撥款', '操作'], data, (e) => `<tr><td>${esc(e.drivers?.profiles?.name)}</td><td>${esc(e.orders?.order_no)}</td><td>${ntd(e.gross_amount)}</td><td>${ntd(e.platform_fee)}</td><td><b>${ntd(e.driver_amount)}</b></td><td>${pill(e.status)}</td><td>${ts(e.created_at)}</td><td>${ts(e.available_at)}</td><td>${ts(e.paid_at)}</td>
           <td>${e.status === 'pending' ? `<button class="sm" onclick="setEarning('${e.id}','available')">標記可撥款</button>` : ''}${e.status === 'available' ? `<button class="sm" onclick="setEarning('${e.id}','paid')">標記已撥款</button>` : ''}</td></tr>`);
+    } else if (tab === 'quotes') {
+      // 0017: 報價漏斗。「報價了但沒下單」是價格太高或找不到車的訊號，也是未來動態定價的訓練資料。
+      const [{ data: f, error: fe }, { data: lost }] = await Promise.all([
+        sb.from('quote_funnel').select('*').limit(30),
+        sb.from('quote_log').select('*').is('order_id', null).order('created_at', { ascending: false }).limit(100),
+      ]);
+      if (fe) throw fe;
+      $('#main').innerHTML =
+        '<p class="muted">每一筆「客戶看到價格」都會記一筆。成交率低或流失的單都很小托數，就是拼車需求的證據。</p>' +
+        table(['日期', '報價數', '成交數', '成交率 %', '流失均價', '流失均托數', '流失小單(1–6托)'], f || [], (r) => `<tr>
+          <td>${esc(r.day)}</td><td>${r.quotes}</td><td>${r.converted}</td><td>${r.convert_pct ?? '—'}</td>
+          <td>${r.lost_avg_price ? 'NT$' + r.lost_avg_price : '—'}</td><td>${r.lost_avg_pallets ?? '—'}</td><td>${r.lost_small_loads}</td></tr>`) +
+        '<h3 style="margin-top:18px">最近流失的報價</h3>' +
+        table(['時間', '起點 → 終點', 'km', '車種', '托/整車', '報價'], lost || [], (q) => `<tr>
+          <td>${new Date(q.created_at).toLocaleString('zh-TW')}</td>
+          <td>${esc(q.pickup_name)} → ${esc(q.dest_name)}</td><td>${q.estimated_km ?? '—'}</td>
+          <td>${esc(q.class_id || '—')}</td><td>${q.load_mode === 'full' ? '整車' : q.pallets + ' 托'}</td>
+          <td>NT$${q.quoted_price}</td></tr>`);
     } else if (tab === 'config') {
       const { data: c, error } = await sb.from('pricing_config').select('*').eq('id', 1).single();
       if (error) throw error;

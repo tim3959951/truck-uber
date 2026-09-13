@@ -533,6 +533,29 @@ reset role;
 update public.pricing_config set require_phone_verification = false where id = 1;
 set role authenticated;
 
+-- 0017: quote log — a quote that never became an order stays open; ordering links the recent ones
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ declare v_lost uuid; v_o public.orders; begin
+  v_lost := public.log_quote('{"pickup":{"name":"龍潭","lat":24.86,"lng":121.21},"dest":{"name":"台中","lat":24.15,"lng":120.67},
+                               "km":120,"class_id":"17t","load_mode":"pallet","pallets":4,"tier":"dedicated","price":6800}'::jsonb);
+  assert v_lost is not null, 'quote logged';
+  -- 10 秒內的第二筆會被擋掉（避免畫面重繪灌水）
+  assert public.log_quote('{"pallets":4,"price":6800}'::jsonb) is null, 'throttled within 10 s';
+  assert (select count(*) from public.quote_log where order_id is null) = 1, 'still an open quote';
+end $$;
+reset role;
+update public.quote_log set created_at = now() - interval '20 seconds';
+set role authenticated;
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ declare v_o public.orders; begin
+  perform public.log_quote('{"pickup":{"name":"A"},"dest":{"name":"B"},"km":12,"class_id":"17t","pallets":1,"price":2000}'::jsonb);
+  v_o := public.create_order('{"pickup":{"name":"A","lat":25.0,"lng":121.0},"dest":{"name":"B","lat":25.1,"lng":121.0},
+                              "pallets":1,"cargo_type":"x","tier":"dedicated","km":12}'::jsonb);
+  assert (select count(*) from public.quote_log where order_id = v_o.id) = 2, 'both recent quotes linked to the order';
+  assert (select count(*) from public.quote_log where order_id is null) = 0, 'nothing left open';
+  assert (select quotes from public.quote_funnel limit 1) = 2, 'funnel view works';
+end $$;
+
 -- 0016: test-phone whitelist lets the same handset be re-used across test accounts
 select auth.login('11111111-1111-1111-1111-111111111111');
 do $$ begin

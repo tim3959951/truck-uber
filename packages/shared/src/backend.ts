@@ -52,6 +52,8 @@ export interface Backend {
   /** Uploads a local image (file:/blob:/data: uri) and returns a public URL. Throws on failure. */
   uploadCargoPhoto(localUri: string): Promise<string>;
   createOrder(input: OrderInput): Promise<Order>;
+  /** 0017: records a quote the customer was shown (for price analytics / future dynamic pricing). Never throws. */
+  logQuote(q: Record<string, unknown>): Promise<void>;
   /** Sandbox payment → `searching` and dispatch. */
   payOrderSandbox(orderId: string): Promise<Order>;
   /** Called every few seconds while searching/offered: expires stale offers, re-dispatches. */

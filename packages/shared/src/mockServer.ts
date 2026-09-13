@@ -225,6 +225,7 @@ export function createMockServer(role: 'customer' | 'driver'): Backend {
       if (role === 'customer') mockContract.customerAckAt = Date.now(); else mockContract.carrierAckAt = Date.now();
       return mockContract;
     },
+    async logQuote() {},
     async createOrder(input) {
       clearAll();
       order = buildOrder(input);

@@ -1,0 +1,23 @@
+# Supabase 免費方案「一週沒有資料庫活動就自動暫停」，暫停後兩支 App 直接掛掉、要手動到後台按 Resume。
+# 這支工作每天打一次資料庫，讓專案永遠算「有活動」。用的是公開的 anon key，沒有任何秘密。
+name: keepalive
+
+on:
+  schedule:
+    - cron: '17 2 * * *' # 每天 UTC 02:17（台灣時間 10:17）
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        env:
+          SUPABASE_URL: https://iyjodzxjodygjpkvlvwt.supabase.co
+          SUPABASE_ANON_KEY: sb_publishable_oJV1lC6n8f7KfJ8sopjIoA__P_ina3K
+        run: |
+          code=$(curl -sS -o /tmp/out.txt -w '%{http_code}' \
+            "$SUPABASE_URL/rest/v1/vehicle_classes?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY")
+          echo "HTTP $code: $(head -c 200 /tmp/out.txt)"
+          test "$code" = "200"
