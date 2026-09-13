@@ -533,6 +533,30 @@ reset role;
 update public.pricing_config set require_phone_verification = false where id = 1;
 set role authenticated;
 
+-- 0016: test-phone whitelist lets the same handset be re-used across test accounts
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ begin
+  -- a normal number is never detached from anyone
+  assert public.claim_test_phone('0987654321') = false, 'non-test phone is a no-op';
+  assert public.normalize_tw_phone('0913-534-909') = '886913534909', 'normalize 09xx';
+  assert public.normalize_tw_phone('+886913534909') = '886913534909', 'normalize +886';
+end $$;
+reset role;
+insert into public.test_phones (phone, note) values ('886900000009', 'unit test') on conflict do nothing;
+update auth.users set phone = '886900000009', phone_confirmed_at = now() where id = '22222222-2222-2222-2222-222222222222';
+update public.profiles set phone_verified_at = now() where id = '22222222-2222-2222-2222-222222222222';
+set role authenticated;
+select auth.login('11111111-1111-1111-1111-111111111111');
+do $$ begin
+  assert public.claim_test_phone('0900000009') = true, 'test phone is claimable';
+end $$;
+reset role;
+do $$ begin
+  assert (select phone from auth.users where id = '22222222-2222-2222-2222-222222222222') is null, 'freed from the old account';
+  assert (select phone_verified_at from public.profiles where id = '22222222-2222-2222-2222-222222222222') is null, 'verification cleared';
+end $$;
+set role authenticated;
+
 -- a customer cannot promote themselves
 select auth.login('11111111-1111-1111-1111-111111111111');
 do $$ begin

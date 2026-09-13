@@ -349,6 +349,9 @@ export function createSupabaseBackend(): Backend {
       if (error) throw new Error(friendlyAuthError(error.message));
     },
     async startPhoneVerification(phone) {
+      // dev only: a number on the platform's test-phone list is detached from whatever account
+      // holds it, so the same handset can be re-used for another test account (0016). No-op otherwise.
+      try { await sb.rpc('claim_test_phone', { p_phone: phone }); } catch { /* not a test number */ }
       const { error } = await sb.auth.updateUser({ phone: toE164(phone) });
       if (error) throw new Error(friendlyAuthError(error.message));
     },
