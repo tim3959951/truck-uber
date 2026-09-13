@@ -555,6 +555,12 @@ do $$ declare v_o public.orders; begin
   assert (select count(*) from public.quote_log where order_id is null) = 0, 'nothing left open';
   assert (select quotes from public.quote_funnel limit 1) = 2, 'funnel view works';
 end $$;
+-- 0018: 另一位使用者透過 view 不該看到別人的報價（view 要 security_invoker）
+select auth.login('33333333-3333-3333-3333-333333333333');
+do $$ begin
+  assert (select count(*) from public.quote_funnel) = 0, 'funnel respects RLS';
+  assert (select count(*) from public.quote_log) = 0, 'quote_log respects RLS';
+end $$;
 
 -- 0016: test-phone whitelist lets the same handset be re-used across test accounts
 select auth.login('11111111-1111-1111-1111-111111111111');
