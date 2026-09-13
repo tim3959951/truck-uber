@@ -15,6 +15,10 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('44444444-4444-4444-4444-444444444444', 'admin@test.tw',    '{"role":"customer","name":"Admin"}');
 update public.profiles set role = 'admin' where id = '44444444-4444-4444-4444-444444444444';
 
+-- 0014 ships with phone verification required in production; the tests exercise that in their own
+-- block near the end and run with it off elsewhere.
+update public.pricing_config set require_phone_verification = false where id = 1;
+
 -- 0006: carriers must pass eligibility review before going online; approve both test drivers up front
 select auth.login('44444444-4444-4444-4444-444444444444');
 select public.review_onboarding(id, 'approved', 'test') from public.drivers;
